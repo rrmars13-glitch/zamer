@@ -142,6 +142,7 @@
   .keypad-btn:active{background:var(--surface-2);}
   .keypad-btn-sub{font-size:18px;color:var(--ink-dim);}
   .diag-choice-btns{display:flex;flex-direction:column;gap:10px;margin-top:14px;}
+  .ortho-toggle{width:100%;text-align:center;font-family:var(--font-body);font-size:12.5px;font-weight:600;color:var(--accent-soft-ink);background:var(--accent-soft);border:1px solid transparent;border-radius:var(--radius-sm);padding:9px 10px;margin:2px 0 4px;}
   @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important;} }
 </style>
 </head>
@@ -553,10 +554,17 @@ function newBuilder(objId, aptId, editingMeas){
     }
     return {objId:objId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
       points:pts, wallLengths:wl, diagonals:diags, closed:true, resultMode:true, mode:"diagonal",
-      measure:null, diagStage:null, editSeg:null, drag:null};
+      snapOrtho:true, measure:null, diagStage:null, editSeg:null, drag:null};
   }
   return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
-    closed:false, resultMode:false, mode:"wall", measure:null, diagStage:null, editSeg:null, drag:null};
+    closed:false, resultMode:false, mode:"wall", snapOrtho:true, measure:null, diagStage:null, editSeg:null, drag:null};
+}
+// forces the dropped point onto a horizontal or vertical line through the anchor
+// (whichever axis the finger moved further along), so hand-drawn walls come out as clean right angles
+function snapAxis(anchor, raw){
+  var dx = raw.x-anchor.x, dy = raw.y-anchor.y;
+  if (Math.abs(dx) >= Math.abs(dy)) return {x:raw.x, y:anchor.y};
+  return {x:anchor.x, y:raw.y};
 }
 
 // rough-sketch distance -> a plausible starting cm guess (overwritten once the user types a real value)
@@ -651,11 +659,13 @@ function buildBuilderCanvasSvg(b){
   var dragEl = "";
   if (b.drag){
     if (b.drag.mode==="wall-first"){
-      var s0=toSvg(b.drag.startRaw), s1=toSvg(b.drag.curRaw);
+      var previewEnd0 = b.snapOrtho ? snapAxis(b.drag.startRaw, b.drag.curRaw) : b.drag.curRaw;
+      var s0=toSvg(b.drag.startRaw), s1=toSvg(previewEnd0);
       dragEl = '<line x1="'+s0.x.toFixed(1)+'" y1="'+s0.y.toFixed(1)+'" x2="'+s1.x.toFixed(1)+'" y2="'+s1.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
     } else if (b.drag.mode==="wall-next"){
       var last=b.points[b.points.length-1];
-      var s2=toSvg(last), s3=toSvg(b.drag.curRaw);
+      var previewEnd1 = b.snapOrtho ? snapAxis(last, b.drag.curRaw) : b.drag.curRaw;
+      var s2=toSvg(last), s3=toSvg(previewEnd1);
       dragEl = '<line x1="'+s2.x.toFixed(1)+'" y1="'+s2.y.toFixed(1)+'" x2="'+s3.x.toFixed(1)+'" y2="'+s3.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
     } else if (b.drag.mode==="diagonal"){
       var s4=toSvg(b.points[b.drag.aIdx]), s5=toSvg(b.drag.curRaw);
@@ -819,7 +829,8 @@ function renderBuilderScreen(){
       '<button class="dir-btn '+(b.mode==="diagonal"?"active":"")+'" data-act="setMode" data-mode="diagonal" '+(b.points.length<3?"disabled":"")+'>📏 Диагональ</button>'+
       '</div>';
     var hint = '<div class="canvas-hint">'+(b.mode==="wall" ? "Проведите пальцем по клеточкам — начертите весь контур, цифры впишем потом" : "Проведите линию между двумя уже поставленными точками")+'</div>';
-    body = modeToggle + hint + (b.closed ? renderSegList(b) : "") +
+    var orthoToggle = (b.mode==="wall" && !b.closed) ? '<button class="ortho-toggle" data-act="toggleOrtho">'+(b.snapOrtho ? "⊥ Угол 90° — нажми для свободного угла" : "⟋ Свободный угол — нажми для 90°")+'</button>' : "";
+    body = modeToggle + hint + orthoToggle + (b.closed ? renderSegList(b) : "") +
       (canClose ? '<button class="btn btn-secondary btn-block" data-act="closeToStart">Замкнуть контур на '+pointLabel(0)+'</button>' : "")+
       '<div class="btn-row">'+
       (b.points.length>0 ? '<button class="btn btn-secondary" data-act="undoBuilder">Отменить последний шаг</button>' : '<button class="btn btn-ghost" data-act="cancelBuilder">Отмена</button>')+
@@ -911,13 +922,15 @@ function onCanvasPointerUp(e){
   var raw = roughFromClient(e.clientX, e.clientY);
   var drag = b.drag; b.drag = null;
   if (drag.mode==="wall-first"){
-    var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(raw);
+    var rawEnd = b.snapOrtho ? snapAxis(drag.startRaw, raw) : raw;
+    var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(rawEnd);
     if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.6){ render(); return; }
     b.points.push(p0); b.points.push(p1);
     b.wallLengths.push(guessLen(p0,p1));
   } else if (drag.mode==="wall-next"){
     var last = b.points[b.points.length-1];
-    var pnew = snapToGrid(raw);
+    var rawTarget = b.snapOrtho ? snapAxis(last, raw) : raw;
+    var pnew = snapToGrid(rawTarget);
     if (b.points.length>=3 && Math.hypot(pnew.x-b.points[0].x, pnew.y-b.points[0].y) < 0.75){
       b.wallLengths.push(guessLen(last, b.points[0]));
       b.closed = true;
@@ -1057,6 +1070,7 @@ function actions(act, ds){
     if (ds.mode==="wall" && b.closed) return;
     b.mode = ds.mode; render(); return;
   }
+  if (act==="toggleOrtho"){ b.snapOrtho = !b.snapOrtho; render(); return; }
   if (act==="closeToStart"){
     if (b.points.length<3) return;
     var lastPt = b.points[b.points.length-1];
