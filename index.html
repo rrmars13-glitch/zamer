@@ -1,0 +1,1061 @@
+<title>Замер Потолков</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#EEF1F4; --surface:#FFFFFF; --surface-2:#E4E9EE;
+    --ink:#1B2430; --ink-dim:#5B6672;
+    --accent:#D9730D; --accent-ink:#FFFFFF; --accent-soft:#FBE4C8; --accent-soft-ink:#7A3E08;
+    --line:#CBD4DC;
+    --good:#2E7D53; --good-soft:#DDF1E4;
+    --warn:#B23B2E; --warn-soft:#FBE1DC;
+    --radius:16px; --radius-sm:10px;
+    --font-display:'Archivo',system-ui,sans-serif;
+    --font-body:'Public Sans',system-ui,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;
+    --shadow:0 1px 2px rgba(20,30,40,0.06), 0 8px 20px -12px rgba(20,30,40,0.18);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#10151C; --surface:#1A222C; --surface-2:#212B37;
+      --ink:#E7ECF1; --ink-dim:#93A1AF;
+      --accent:#F0913A; --accent-ink:#1B1206; --accent-soft:#3A2A18; --accent-soft-ink:#F6C899;
+      --line:#2B3846;
+      --good:#4CAF7D; --good-soft:#163326;
+      --warn:#E58A78; --warn-soft:#3A1F1A;
+      --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10151C; --surface:#1A222C; --surface-2:#212B37;
+    --ink:#E7ECF1; --ink-dim:#93A1AF;
+    --accent:#F0913A; --accent-ink:#1B1206; --accent-soft:#3A2A18; --accent-soft-ink:#F6C899;
+    --line:#2B3846;
+    --good:#4CAF7D; --good-soft:#163326;
+    --warn:#E58A78; --warn-soft:#3A1F1A;
+    --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font-body);margin:0;-webkit-tap-highlight-color:transparent;}
+  #app{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:28px;}
+  button{font-family:inherit;cursor:pointer;}
+  input{font-family:inherit;}
+  .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+
+  .topbar{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);}
+  .topbar-back{border:none;background:var(--surface-2);color:var(--ink);width:36px;height:36px;border-radius:10px;font-size:16px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .topbar-titles{flex:1;min-width:0;}
+  .topbar-eyebrow{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .topbar-title{font-family:var(--font-display);font-weight:800;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .topbar-action{border:none;background:var(--accent-soft);color:var(--accent-soft-ink);font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex:none;}
+
+  .screen{padding:14px 16px 100px;display:flex;flex-direction:column;gap:14px;flex:1;}
+
+  .totals-bar{display:flex;gap:8px;}
+  .stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 8px;text-align:center;}
+  .stat-value{font-family:var(--font-mono);font-weight:600;font-size:16px;}
+  .stat-label{font-size:10.5px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+
+  .section-label{font-family:var(--font-display);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin:2px 2px -4px;}
+
+  .list{display:flex;flex-direction:column;gap:10px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);}
+  .card-body{flex:1;min-width:0;}
+  .card-title{font-family:var(--font-display);font-weight:700;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .card-sub{font-size:12.5px;color:var(--ink-dim);margin-top:2px;}
+  .card-metrics{font-size:12.5px;color:var(--ink-dim);margin-top:4px;display:flex;gap:10px;}
+  .card-metrics b{color:var(--ink);font-family:var(--font-mono);font-weight:600;}
+  .card-thumb{width:52px;height:44px;flex:none;background:var(--surface-2);border-radius:8px;overflow:hidden;}
+  .card-chev{color:var(--ink-dim);flex:none;font-size:18px;}
+  .card-edit{border:none;background:transparent;color:var(--ink-dim);font-size:15px;flex:none;padding:6px;border-radius:8px;}
+  .card-edit:active{background:var(--surface-2);}
+
+  .empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);padding:28px 18px;text-align:center;color:var(--ink-dim);font-size:14px;}
+  .empty b{display:block;color:var(--ink);font-family:var(--font-display);font-size:16px;margin-bottom:6px;}
+
+  .btn{border:none;border-radius:12px;padding:13px 16px;font-weight:700;font-size:14.5px;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);}
+  .btn-secondary{background:var(--surface-2);color:var(--ink);}
+  .btn-ghost{background:transparent;color:var(--ink-dim);}
+  .btn-danger{background:var(--warn-soft);color:var(--warn);}
+  .btn-block{width:100%;}
+  .btn-sm{padding:8px 12px;font-size:13px;border-radius:9px;}
+  .btn:disabled{opacity:.45;}
+  .btn-row{display:flex;gap:8px;}
+  .btn-row .btn{flex:1;}
+
+  .fab-wrap{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(to top, var(--bg) 60%, transparent);pointer-events:none;}
+  .fab-wrap .btn{pointer-events:auto;max-width:560px;width:100%;box-shadow:var(--shadow);}
+
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field-label{font-size:12px;color:var(--ink-dim);font-weight:600;}
+  .input{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:11px 12px;font-size:15px;width:100%;}
+  .input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent);}
+  .input-num{font-family:var(--font-mono);font-size:20px;font-weight:600;text-align:center;}
+  .input-suffix-wrap{position:relative;}
+  .input-suffix{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--ink-dim);font-size:13px;pointer-events:none;}
+
+  .builder-canvas{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);aspect-ratio:5/4;box-shadow:var(--shadow);overflow:hidden;touch-action:none;}
+  .canvas-hint{font-size:12px;color:var(--ink-dim);text-align:center;margin-top:-6px;}
+  .dir-toggle{display:flex;gap:8px;}
+  .dir-btn{flex:1;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);padding:12px;border-radius:12px;font-weight:700;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .dir-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-soft-ink);}
+  .dir-btn:disabled{opacity:.4;}
+
+  .wall-log{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden;}
+  .wall-row{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13.5px;}
+  .wall-row:last-child{border-bottom:none;}
+  .wall-row .wtag{font-family:var(--font-mono);font-weight:600;color:var(--ink-dim);font-size:11px;width:28px;flex:none;}
+  .wall-row .wval{font-family:var(--font-mono);font-weight:600;flex:1;}
+  .wall-row .wturn{color:var(--ink-dim);font-size:12.5px;flex:1;}
+  .wall-row button{border:none;background:transparent;color:var(--ink-dim);font-size:14px;padding:4px 6px;}
+  .wall-edit-row{display:flex;gap:8px;padding:9px 12px;align-items:center;background:var(--surface-2);}
+  .wall-edit-row input{width:90px;}
+
+  .banner{border-radius:var(--radius-sm);padding:12px 14px;font-size:13.5px;display:flex;gap:9px;align-items:flex-start;}
+  .banner-good{background:var(--good-soft);color:var(--good);}
+  .banner-warn{background:var(--warn-soft);color:var(--warn);}
+  .banner b{font-weight:700;}
+
+  .result-stats{display:flex;gap:10px;}
+  .result-stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 10px;text-align:center;box-shadow:var(--shadow);}
+  .result-stat-value{font-family:var(--font-mono);font-weight:700;font-size:22px;}
+  .result-stat-label{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.05em;margin-top:3px;}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(10,14,20,0.45);display:flex;align-items:flex-end;justify-content:center;z-index:20;}
+  .modal{background:var(--surface);border-radius:18px 18px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));width:100%;max-width:560px;display:flex;flex-direction:column;gap:14px;}
+  .modal-title{font-family:var(--font-display);font-weight:800;font-size:17px;}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13.5px;z-index:30;box-shadow:var(--shadow);max-width:90vw;text-align:center;}
+  .footer-links{display:flex;justify-content:center;gap:18px;padding:6px 0 2px;}
+  .footer-links button{border:none;background:transparent;color:var(--ink-dim);font-size:12.5px;text-decoration:underline;}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important;} }
+</style>
+<div id="app"></div>
+<script>
+(function(){
+"use strict";
+var STORAGE_KEY = "ceilingMeasure_v2";
+var STORAGE_KEY_LEGACY = "ceilingMeasure_v1";
+var CANVAS_W = 320, CANVAS_H = 256;
+var CANVAS_XFORM = null;
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function nowIso(){ return new Date().toISOString(); }
+function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function fmtM2(cm2){ return (cm2/10000).toFixed(2).replace(".",",")+" м²"; }
+function fmtM(cm){ return (cm/100).toFixed(2).replace(".",",")+" м"; }
+function pointLabel(i){ var s="",n=i; do{ s=String.fromCharCode(65+(n%26))+s; n=Math.floor(n/26)-1; } while(n>=0); return s; }
+
+function defaultState(){ return {objects:[]}; }
+function loadState(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw){ var s = JSON.parse(raw); if (s && Array.isArray(s.objects)) return s; }
+    var legacyRaw = localStorage.getItem(STORAGE_KEY_LEGACY);
+    if (legacyRaw){ var ls = JSON.parse(legacyRaw); if (ls && Array.isArray(ls.objects)) return ls; }
+    return defaultState();
+  } catch(e){ return defaultState(); }
+}
+function persist(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE)); }catch(e){} }
+
+var STATE = loadState();
+var NAV = {view:"home"};
+
+function findObject(id){ return STATE.objects.find(function(o){return o.id===id;}); }
+function findApartment(obj,id){ return obj.apartments.find(function(a){return a.id===id;}); }
+function findMeasurement(apt,id){ return apt.measurements.find(function(m){return m.id===id;}); }
+
+// ---------- geometry: distance-constraint solver (perimeter + diagonals) ----------
+function solveShape(roughPoints, wallLengths, diagonals){
+  var K = roughPoints.length;
+  var perimeter = (wallLengths||[]).reduce(function(a,b){return a+b;},0);
+  if (K < 3){
+    return {vertices:[], area:0, perimeter:perimeter, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:(diagonals||[]).length};
+  }
+  // The rough sketch lives on an abstract grid (single-digit units); real lengths are in
+  // centimeters. Rescale the sketch to roughly the real perimeter first, so relaxation
+  // only has to fix relative proportions/angles instead of a ~100x size jump.
+  var roughPerim = 0;
+  for (var ri=0; ri<K; ri++){ var rp1=roughPoints[ri], rp2=roughPoints[(ri+1)%K]; roughPerim += Math.hypot(rp2.x-rp1.x, rp2.y-rp1.y); }
+  var scaleFactor = roughPerim>0.0001 ? perimeter/roughPerim : 1;
+  var pos = roughPoints.map(function(p){ return {x:p.x*scaleFactor, y:p.y*scaleFactor}; });
+  var anchor = pos.map(function(p){ return {x:p.x, y:p.y}; });
+  var constraints = [];
+  for (var i=0;i<K;i++){ constraints.push({a:i, b:(i+1)%K, target:wallLengths[i]}); }
+  (diagonals||[]).forEach(function(d){ constraints.push({a:d.a, b:d.b, target:d.length}); });
+  // A perimeter loop alone is under-constrained for K>=4 (it can "shear" like scissors
+  // without changing any side length, and repeated relaxation can drift toward a
+  // degenerate, zero-area fold along that free direction). A weak pull back toward the
+  // as-drawn rough shape acts as bracing against that drift, while real length
+  // constraints (checked every iteration too) still dominate the final result.
+  var ANCHOR_WEIGHT = 0.02;
+  var ITER = 300;
+  for (var it=0; it<ITER; it++){
+    for (var ci=0; ci<constraints.length; ci++){
+      var con = constraints[ci];
+      var dx = pos[con.b].x-pos[con.a].x, dy = pos[con.b].y-pos[con.a].y;
+      var dist = Math.hypot(dx,dy) || 0.0001;
+      var diff = (dist-con.target)/dist;
+      var cx = dx*diff*0.5, cy = dy*diff*0.5;
+      if (con.a!==0){ pos[con.a].x += cx; pos[con.a].y += cy; }
+      if (con.b!==0){ pos[con.b].x -= cx; pos[con.b].y -= cy; }
+    }
+    for (var pi=1; pi<K; pi++){
+      pos[pi].x += (anchor[pi].x-pos[pi].x)*ANCHOR_WEIGHT;
+      pos[pi].y += (anchor[pi].y-pos[pi].y)*ANCHOR_WEIGHT;
+    }
+  }
+  var area2=0;
+  for (var j=0;j<K;j++){ var p1=pos[j], p2=pos[(j+1)%K]; area2 += p1.x*p2.y-p2.x*p1.y; }
+  var area = Math.abs(area2)/2;
+  var maxErr = 0;
+  constraints.forEach(function(con){
+    var d = Math.hypot(pos[con.b].x-pos[con.a].x, pos[con.b].y-pos[con.a].y);
+    if (con.target>0){ maxErr = Math.max(maxErr, Math.abs(d-con.target)/con.target); }
+  });
+  var needDiagonals = Math.max(0, K-3);
+  return {vertices:pos, area:area, perimeter:perimeter, valid:true, maxErr:maxErr, needDiagonals:needDiagonals, haveDiagonals:(diagonals||[]).length};
+}
+
+// Legacy (v1) turn-angle turtle geometry, kept so measurements saved by the first version of the app still open correctly.
+function computeGeomLegacy(walls, turns){
+  walls = walls||[]; turns = turns||[];
+  var perimeter = walls.reduce(function(a,b){return a+b;},0);
+  if (walls.length < 3){
+    return {vertices:[], area:0, perimeter:perimeter, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:0};
+  }
+  var heading=0,x=0,y=0;
+  var vertices=[{x:0,y:0}];
+  for (var i=0;i<walls.length;i++){
+    x += walls[i]*Math.cos(heading); y += walls[i]*Math.sin(heading);
+    if (i<walls.length-1){
+      vertices.push({x:x,y:y});
+      var t = turns[i]||{dir:"L",angle:90};
+      var sign = t.dir==="L"?1:-1;
+      heading += sign*(t.angle||90)*Math.PI/180;
+    }
+  }
+  var closeGap = Math.hypot(x-vertices[0].x, y-vertices[0].y);
+  var area2=0;
+  for (var j=0;j<vertices.length;j++){ var p1=vertices[j], p2=vertices[(j+1)%vertices.length]; area2 += p1.x*p2.y-p2.x*p1.y; }
+  var area = Math.abs(area2)/2;
+  var maxErr = perimeter>0 ? closeGap/perimeter : 0;
+  return {vertices:vertices, area:area, perimeter:perimeter, valid:true, maxErr:maxErr, needDiagonals:0, haveDiagonals:0};
+}
+
+function computeGeom(m){
+  if (!m) return {vertices:[], area:0, perimeter:0, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:0};
+  if (m.turns) return computeGeomLegacy(m.walls, m.turns);
+  return solveShape(m.points||[], m.wallLengths||[], m.diagonals||[]);
+}
+function wallLenArrayOf(m){ return m.turns ? m.walls : m.wallLengths; }
+function diagonalsOf(m){ return m.turns ? [] : (m.diagonals||[]); }
+
+function aptTotals(apt){
+  var area=0, per=0;
+  apt.measurements.forEach(function(m){ var g=computeGeom(m); area+=g.area; per+=g.perimeter; });
+  return {area:area, perimeter:per, count:apt.measurements.length};
+}
+function objTotals(obj){
+  var area=0, per=0, count=0;
+  obj.apartments.forEach(function(a){ var t=aptTotals(a); area+=t.area; per+=t.perimeter; count+=t.count; });
+  return {area:area, perimeter:per, count:count, apts:obj.apartments.length};
+}
+
+// ---------- svg drawing (solved shape: thumbnails, result preview, export) ----------
+function polygonSvg(vertices, opts){
+  opts = Object.assign({width:300,height:220,pad:26,strokeColor:"#D9730D",fillColor:"rgba(217,115,13,0.14)",
+    labelBg:"#FFFFFF",labelColor:"#1B2430",walls:null,diagonals:null,dotColor:null}, opts||{});
+  if (!vertices || vertices.length<2){
+    return '<svg viewBox="0 0 '+opts.width+' '+opts.height+'" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">'+
+      '<text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="'+opts.labelColor+'" opacity="0.5" font-family="Public Sans, sans-serif" font-size="13">Нет данных</text></svg>';
+  }
+  var xs = vertices.map(function(p){return p.x;}), ys = vertices.map(function(p){return p.y;});
+  var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs), minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
+  var w = Math.max(maxX-minX,1), h = Math.max(maxY-minY,1);
+  var availW = opts.width-opts.pad*2, availH = opts.height-opts.pad*2;
+  var scale = Math.min(availW/w, availH/h);
+  function toSvg(p){ return {x: opts.pad + (p.x-minX)*scale, y: opts.height-opts.pad-(p.y-minY)*scale}; }
+  var svgPts = vertices.map(toSvg);
+  var cx = vertices.reduce(function(a,p){return a+p.x;},0)/vertices.length;
+  var cy = vertices.reduce(function(a,p){return a+p.y;},0)/vertices.length;
+  var pathD = svgPts.map(function(p,i){ return (i===0?"M":"L")+p.x.toFixed(1)+" "+p.y.toFixed(1); }).join(" ")+" Z";
+  var dots = svgPts.map(function(p){ return '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="'+(opts.dotColor||opts.strokeColor)+'"/>'; }).join("");
+  var labels = "";
+  if (opts.walls){
+    for (var i=0;i<vertices.length;i++){
+      var a = vertices[i], b = vertices[(i+1)%vertices.length];
+      var len = opts.walls[i];
+      if (len==null) continue;
+      var mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+      var svgMid = toSvg(mid);
+      var nx = -(b.y-a.y), ny = (b.x-a.x);
+      var nl = Math.hypot(nx,ny)||1; nx/=nl; ny/=nl;
+      var toMidX = mid.x-cx, toMidY = mid.y-cy;
+      if (nx*toMidX+ny*toMidY < 0){ nx=-nx; ny=-ny; }
+      var lx = svgMid.x + nx*15, ly = svgMid.y - ny*15;
+      var t = String(Math.round(len));
+      var boxW = Math.max(24, 8+t.length*7.5);
+      labels += '<rect x="'+(lx-boxW/2).toFixed(1)+'" y="'+(ly-9).toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="18" rx="4" fill="'+opts.labelBg+'" opacity="0.94"/>'+
+        '<text x="'+lx.toFixed(1)+'" y="'+(ly+4).toFixed(1)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="'+opts.labelColor+'">'+t+'</text>';
+    }
+  }
+  var diagEls = "";
+  if (opts.diagonals && opts.diagonals.length){
+    opts.diagonals.forEach(function(d){
+      if (d.a>=vertices.length||d.b>=vertices.length) return;
+      var pa=toSvg(vertices[d.a]), pb=toSvg(vertices[d.b]);
+      diagEls += '<line x1="'+pa.x.toFixed(1)+'" y1="'+pa.y.toFixed(1)+'" x2="'+pb.x.toFixed(1)+'" y2="'+pb.y.toFixed(1)+'" stroke="'+opts.strokeColor+'" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.55"/>';
+      if (d.length!=null){
+        var mx=(pa.x+pb.x)/2, my=(pa.y+pb.y)/2;
+        diagEls += '<text x="'+mx.toFixed(1)+'" y="'+(my-4).toFixed(1)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="'+opts.labelColor+'" opacity="0.8">'+Math.round(d.length)+'</text>';
+      }
+    });
+  }
+  return '<svg viewBox="0 0 '+opts.width+' '+opts.height+'" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">'+
+    '<path d="'+pathD+'" fill="'+opts.fillColor+'" stroke="'+opts.strokeColor+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+
+    diagEls+dots+labels+'</svg>';
+}
+
+function svgCssVars(){
+  var cs = getComputedStyle(document.documentElement);
+  return {
+    strokeColor: cs.getPropertyValue("--accent").trim()||"#D9730D",
+    fillColor: "color-mix(in srgb, "+ (cs.getPropertyValue("--accent").trim()||"#D9730D") +" 16%, transparent)",
+    labelBg: cs.getPropertyValue("--surface").trim()||"#fff",
+    labelColor: cs.getPropertyValue("--ink").trim()||"#1B2430",
+    lineColor: cs.getPropertyValue("--line").trim()||"#CBD4DC",
+    dotColor: cs.getPropertyValue("--accent").trim()||"#D9730D"
+  };
+}
+
+// ---------- toast ----------
+var toastTimer=null;
+function toast(msg){
+  var elx = document.getElementById("toastEl");
+  if (elx) elx.remove();
+  elx = document.createElement("div");
+  elx.id = "toastEl"; elx.className = "toast"; elx.textContent = msg;
+  document.body.appendChild(elx);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ elx.remove(); }, 2600);
+}
+
+// ---------- file export ----------
+function exportFile(filename, mime, content){
+  var inViewer = !!(window.claude && typeof window.claude.use === "function");
+  if (inViewer){
+    window.claude.use("downloads").then(function(downloads){
+      if (!downloads){ toast("Сохранение файлов недоступно здесь. Используйте копию приложения, сохранённую на телефон."); return; }
+      var blob = new Blob([content], {type:mime});
+      downloads.save({filename:filename, data:blob}).then(function(){
+        toast("Сохранено: "+filename);
+      }).catch(function(err){
+        var code = err && err.code;
+        if (code==="declined") toast("Сохранение отменено.");
+        else if (code==="rate_limited") toast("Подождите, идёт другое сохранение.");
+        else toast("Не удалось сохранить файл.");
+      });
+    }).catch(function(){ toast("Не удалось сохранить файл."); });
+  } else {
+    try{
+      var blob2 = new Blob([content], {type:mime});
+      var url = URL.createObjectURL(blob2);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      toast("Файл сохранён: "+filename);
+    }catch(e){ toast("Не удалось сохранить файл."); }
+  }
+}
+
+// ---------- report ----------
+function buildReportHtml(obj){
+  var ot = objTotals(obj);
+  var dateStr = new Date(obj.createdAt).toLocaleDateString("ru-RU");
+  var aptsHtml = obj.apartments.map(function(apt){
+    var at = aptTotals(apt);
+    var rooms = apt.measurements.map(function(m){
+      var g = computeGeom(m);
+      var svg = polygonSvg(g.vertices, {width:260,height:190,pad:24,strokeColor:"#B5560E",fillColor:"rgba(181,86,14,0.12)",labelBg:"#FFF8F0",labelColor:"#3A2413",dotColor:"#B5560E",walls:wallLenArrayOf(m), diagonals:diagonalsOf(m)});
+      return '<div class="room-card"><div class="room-svg">'+svg+'</div><div class="room-info">'+
+        '<div class="room-name">'+escapeHtml(m.name)+'</div>'+
+        '<div class="room-stats"><span>S = <b>'+fmtM2(g.area)+'</b></span><span>P = <b>'+fmtM(g.perimeter)+'</b></span></div>'+
+        (g.valid && g.maxErr>0.04 ? '<div class="room-warn">Проверьте размеры — есть расхождение ('+(g.maxErr*100).toFixed(0)+'%)</div>' : '')+
+        '</div></div>';
+    }).join("");
+    return '<section class="apt-sec"><h2>'+escapeHtml(apt.name)+' <span>— '+fmtM2(at.area)+', периметр '+fmtM(at.perimeter)+', замеров: '+at.count+'</span></h2>'+
+      '<div class="room-grid">'+rooms+'</div></section>';
+  }).join("");
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+  '<title>'+escapeHtml(obj.name)+' — замеры потолков</title><style>'+
+  'body{font-family:"Public Sans",Arial,sans-serif;color:#26160A;background:#FFFDF9;margin:0;padding:28px 22px 60px;max-width:920px;margin:0 auto;}'+
+  'h1{font-family:Georgia,serif;font-size:26px;margin:0 0 4px;} '+
+  '.meta{color:#7A6A5A;font-size:13px;margin-bottom:18px;}'+
+  '.grand{background:#FFF1DE;border:1.5px solid #E8A257;border-radius:12px;padding:14px 18px;font-size:15px;margin-bottom:26px;}'+
+  '.grand b{font-family:monospace;}'+
+  'h2{font-size:16px;border-bottom:2px solid #E8A257;padding-bottom:6px;margin:30px 0 12px;}'+
+  'h2 span{font-weight:400;color:#7A6A5A;font-size:13px;}'+
+  '.room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}'+
+  '.room-card{border:1px solid #EAD9C4;border-radius:10px;overflow:hidden;background:#fff;page-break-inside:avoid;}'+
+  '.room-svg{background:#FFFBF5;border-bottom:1px solid #EAD9C4;}'+
+  '.room-info{padding:9px 11px;}'+
+  '.room-name{font-weight:700;font-size:13.5px;margin-bottom:3px;}'+
+  '.room-stats{font-size:12.5px;color:#5A4A3C;display:flex;gap:12px;}'+
+  '.room-stats b{font-family:monospace;color:#26160A;}'+
+  '.room-warn{margin-top:5px;font-size:11.5px;color:#B23B2E;}'+
+  '@media print{ body{padding:8mm;} }'+
+  '</style></head><body>'+
+  '<h1>'+escapeHtml(obj.name)+'</h1>'+
+  '<div class="meta">Дата объекта: '+dateStr+' · сформировано '+new Date().toLocaleString("ru-RU")+'</div>'+
+  '<div class="grand">Итого по объекту: квартир — <b>'+ot.apts+'</b>, замеров — <b>'+ot.count+'</b>, площадь — <b>'+fmtM2(ot.area)+'</b>, периметр — <b>'+fmtM(ot.perimeter)+'</b></div>'+
+  aptsHtml+
+  '</body></html>';
+}
+
+// ---------- rendering ----------
+function el(){ return document.getElementById("app"); }
+
+function render(){
+  var app = el();
+  var html = "";
+  if (NAV.view==="home") html = renderHome();
+  else if (NAV.view==="object") html = renderObjectScreen();
+  else if (NAV.view==="apartment") html = renderApartmentScreen();
+  else if (NAV.view==="builder") html = renderBuilderScreen();
+  if (NAV.modal) html += renderModal();
+  app.innerHTML = html;
+  wireLiveInputs();
+}
+
+function topbar(opts){
+  return '<div class="topbar">'+
+    (opts.back ? '<button class="topbar-back" data-act="'+opts.back+'">‹</button>' : '')+
+    '<div class="topbar-titles"><div class="topbar-eyebrow">'+escapeHtml(opts.eyebrow||"")+'</div><div class="topbar-title">'+escapeHtml(opts.title)+'</div></div>'+
+    (opts.action ? '<button class="topbar-action" data-act="'+opts.action.act+'">'+escapeHtml(opts.action.label)+'</button>' : '')+
+    '</div>';
+}
+
+function renderHome(){
+  var objs = STATE.objects.slice().sort(function(a,b){ return (b.createdAt||"").localeCompare(a.createdAt||""); });
+  var list = objs.length ? objs.map(function(o){
+    var t = objTotals(o);
+    var d = new Date(o.createdAt).toLocaleDateString("ru-RU");
+    return '<div class="card" data-act="openObject" data-id="'+o.id+'">'+
+      '<div class="card-body"><div class="card-title">'+escapeHtml(o.name)+'</div>'+
+      '<div class="card-sub">'+d+'</div>'+
+      '<div class="card-metrics"><span>Кв-р: <b>'+o.apartments.length+'</b></span><span>Замеров: <b>'+t.count+'</b></span><span>Площадь: <b>'+fmtM2(t.area)+'</b></span></div></div>'+
+      '<button class="card-edit" data-act="renameObject" data-id="'+o.id+'">✎</button>'+
+      '<div class="card-chev">›</div></div>';
+  }).join("") : '<div class="empty"><b>Пока нет объектов</b>Нажмите «Новый объект», чтобы начать замеры на доме или адресе.</div>';
+  return topbar({title:"Замер Потолков"})+
+    '<div class="screen">'+
+    '<div class="section-label">Объекты</div>'+
+    '<div class="list">'+list+'</div>'+
+    '<div class="footer-links"><button data-act="backupExport">Резервная копия (JSON)</button><button data-act="backupImport">Восстановить из файла</button><input type="file" id="importFile" accept="application/json" style="display:none">'+
+    '</div>'+
+    '</div>'+
+    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newObject">+ Новый объект</button></div>';
+}
+
+function renderObjectScreen(){
+  var obj = findObject(NAV.objectId);
+  if (!obj){ NAV.view="home"; return renderHome(); }
+  var t = objTotals(obj);
+  var apts = obj.apartments.slice();
+  var list = apts.length ? apts.map(function(a){
+    var at = aptTotals(a);
+    return '<div class="card" data-act="openApartment" data-id="'+a.id+'">'+
+      '<div class="card-body"><div class="card-title">'+escapeHtml(a.name)+'</div>'+
+      '<div class="card-metrics"><span>Замеров: <b>'+at.count+'</b></span><span>Площадь: <b>'+fmtM2(at.area)+'</b></span><span>Периметр: <b>'+fmtM(at.perimeter)+'</b></span></div></div>'+
+      '<button class="card-edit" data-act="renameApartment" data-id="'+a.id+'">✎</button>'+
+      '<div class="card-chev">›</div></div>';
+  }).join("") : '<div class="empty"><b>Нет квартир</b>Добавьте первую квартиру этого объекта.</div>';
+  return topbar({back:"goHome", eyebrow:"Объект", title:obj.name, action:{act:"renameObject:"+obj.id, label:"✎"}})+
+    '<div class="screen">'+
+    '<div class="totals-bar">'+
+      '<div class="stat"><div class="stat-value num">'+obj.apartments.length+'</div><div class="stat-label">Квартир</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+t.count+'</div><div class="stat-label">Замеров</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM2(t.area)+'</div><div class="stat-label">Площадь</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM(t.perimeter)+'</div><div class="stat-label">Периметр</div></div>'+
+    '</div>'+
+    '<div class="section-label">Квартиры</div>'+
+    '<div class="list">'+list+'</div>'+
+    '<div class="btn-row"><button class="btn btn-secondary" data-act="deleteObject" data-id="'+obj.id+'">Удалить объект</button>'+
+    '<button class="btn btn-secondary" data-act="exportObject" data-id="'+obj.id+'">Экспорт на производство</button></div>'+
+    '</div>'+
+    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newApartment">+ Новая квартира</button></div>';
+}
+
+function renderApartmentScreen(){
+  var obj = findObject(NAV.objectId);
+  if (!obj){ NAV.view="home"; return renderHome(); }
+  var apt = findApartment(obj, NAV.apartmentId);
+  if (!apt){ NAV.view="object"; return renderObjectScreen(); }
+  var at = aptTotals(apt);
+  var list = apt.measurements.length ? apt.measurements.map(function(m){
+    var g = computeGeom(m);
+    var v = svgCssVars();
+    var thumb = polygonSvg(g.vertices, Object.assign({width:60,height:52,pad:8}, v));
+    return '<div class="card" data-act="openMeasurement" data-id="'+m.id+'">'+
+      '<div class="card-thumb">'+thumb+'</div>'+
+      '<div class="card-body"><div class="card-title">'+escapeHtml(m.name)+'</div>'+
+      '<div class="card-metrics"><span>Площадь: <b>'+fmtM2(g.area)+'</b></span><span>Периметр: <b>'+fmtM(g.perimeter)+'</b></span></div>'+
+      (g.valid && g.maxErr>0.04 ? '<div class="card-metrics" style="color:var(--warn)">⚠ проверьте размеры</div>' : '')+
+      '</div>'+
+      '<div class="card-chev">›</div></div>';
+  }).join("") : '<div class="empty"><b>Нет замеров</b>Нажмите «Новый замер» и обведите потолок пальцем по клеточкам.</div>';
+  return topbar({back:"backToObject", eyebrow:escapeHtml(obj.name), title:apt.name, action:{act:"renameApartment:"+apt.id, label:"✎"}})+
+    '<div class="screen">'+
+    '<div class="totals-bar">'+
+      '<div class="stat"><div class="stat-value num">'+at.count+'</div><div class="stat-label">Замеров</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM2(at.area)+'</div><div class="stat-label">Площадь</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM(at.perimeter)+'</div><div class="stat-label">Периметр</div></div>'+
+    '</div>'+
+    '<div class="section-label">Замеры</div>'+
+    '<div class="list">'+list+'</div>'+
+    '<button class="btn btn-secondary" data-act="deleteApartment" data-id="'+apt.id+'">Удалить квартиру</button>'+
+    '</div>'+
+    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newMeasurement">+ Новый замер</button></div>';
+}
+
+// ---------- builder: draw-on-grid canvas ----------
+function newBuilder(objId, aptId, editingMeas){
+  if (editingMeas){
+    var pts, wl, diags;
+    if (editingMeas.turns){
+      var lg = computeGeomLegacy(editingMeas.walls, editingMeas.turns);
+      pts = lg.vertices.map(function(p){ return {x:p.x/50, y:p.y/50}; });
+      wl = editingMeas.walls.slice();
+      diags = [];
+    } else {
+      pts = (editingMeas.points||[]).map(function(p){ return {x:p.x,y:p.y}; });
+      wl = (editingMeas.wallLengths||[]).slice();
+      diags = (editingMeas.diagonals||[]).map(function(d){ return {a:d.a,b:d.b,length:d.length}; });
+    }
+    return {objId:objId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
+      points:pts, wallLengths:wl, diagonals:diags, closed:true, resultMode:true, mode:"diagonal",
+      pending:null, editSeg:null, drag:null};
+  }
+  return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
+    closed:false, resultMode:false, mode:"wall", pending:null, editSeg:null, drag:null};
+}
+
+function computeFitBounds(pts){
+  if (!pts.length) return {minX:-3,maxX:3,minY:-2.5,maxY:2.5};
+  var xs=pts.map(function(p){return p.x;}), ys=pts.map(function(p){return p.y;});
+  var minX=Math.min.apply(null,xs)-1.3, maxX=Math.max.apply(null,xs)+1.3;
+  var minY=Math.min.apply(null,ys)-1.3, maxY=Math.max.apply(null,ys)+1.3;
+  if (maxX-minX < 5){ var cx=(minX+maxX)/2; minX=cx-2.5; maxX=cx+2.5; }
+  if (maxY-minY < 4){ var cy=(minY+maxY)/2; minY=cy-2; maxY=cy+2; }
+  return {minX:minX,maxX:maxX,minY:minY,maxY:maxY};
+}
+
+function buildBuilderCanvasSvg(b){
+  // Bounds stay frozen for the duration of a drag gesture (set at pointerdown) so the
+  // grid never rescales under the user's finger while they're drawing a line.
+  var bounds = (b.drag && b.drag.bounds) ? b.drag.bounds : computeFitBounds(b.points);
+  var spanX = bounds.maxX-bounds.minX, spanY = bounds.maxY-bounds.minY;
+  var scale = Math.min(CANVAS_W/spanX, CANVAS_H/spanY);
+  var actualW = spanX*scale, actualH = spanY*scale;
+  var offsetX = (CANVAS_W-actualW)/2, offsetY = (CANVAS_H-actualH)/2;
+  CANVAS_XFORM = {minX:bounds.minX, minY:bounds.minY, scale:scale, offsetX:offsetX, offsetY:offsetY, W:CANVAS_W, H:CANVAS_H};
+  function toSvg(p){ return {x: offsetX+(p.x-bounds.minX)*scale, y: CANVAS_H-offsetY-(p.y-bounds.minY)*scale}; }
+
+  var v = svgCssVars();
+  var grid = "";
+  var gx0=Math.floor(bounds.minX), gx1=Math.ceil(bounds.maxX);
+  var gy0=Math.floor(bounds.minY), gy1=Math.ceil(bounds.maxY);
+  for (var gx=gx0; gx<=gx1; gx++){
+    var p1=toSvg({x:gx,y:bounds.minY}), p2=toSvg({x:gx,y:bounds.maxY});
+    grid += '<line x1="'+p1.x.toFixed(1)+'" y1="'+p1.y.toFixed(1)+'" x2="'+p2.x.toFixed(1)+'" y2="'+p2.y.toFixed(1)+'" stroke="'+v.lineColor+'" stroke-width="1" opacity="0.5"/>';
+  }
+  for (var gy=gy0; gy<=gy1; gy++){
+    var q1=toSvg({x:bounds.minX,y:gy}), q2=toSvg({x:bounds.maxX,y:gy});
+    grid += '<line x1="'+q1.x.toFixed(1)+'" y1="'+q1.y.toFixed(1)+'" x2="'+q2.x.toFixed(1)+'" y2="'+q2.y.toFixed(1)+'" stroke="'+v.lineColor+'" stroke-width="1" opacity="0.5"/>';
+  }
+
+  var pathEl = "";
+  if (b.points.length){
+    var pathD = b.points.map(function(p,i){ var sp=toSvg(p); return (i===0?"M":"L")+sp.x.toFixed(1)+" "+sp.y.toFixed(1); }).join(" ");
+    if (b.closed){ var sp0=toSvg(b.points[0]); pathD += " L"+sp0.x.toFixed(1)+" "+sp0.y.toFixed(1); }
+    pathEl = '<path d="'+pathD+'" fill="'+(b.closed?v.fillColor:"none")+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+  }
+
+  var wallLabels = "";
+  for (var i=0;i<b.wallLengths.length;i++){
+    var pa=b.points[i], pb=b.points[(i+1)%b.points.length];
+    if (!pa||!pb) continue;
+    var spa=toSvg(pa), spb=toSvg(pb);
+    var mx=(spa.x+spb.x)/2, my=(spa.y+spb.y)/2;
+    var t = String(Math.round(b.wallLengths[i]));
+    var boxW = Math.max(24, 8+t.length*7.5);
+    wallLabels += '<rect x="'+(mx-boxW/2).toFixed(1)+'" y="'+(my-9).toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="18" rx="4" fill="'+v.labelBg+'" opacity="0.94"/>'+
+      '<text x="'+mx.toFixed(1)+'" y="'+(my+4).toFixed(1)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="'+v.labelColor+'">'+t+'</text>';
+  }
+
+  var diagEls = "";
+  b.diagonals.forEach(function(d){
+    var pa=b.points[d.a], pb=b.points[d.b];
+    if (!pa||!pb) return;
+    var spa=toSvg(pa), spb=toSvg(pb);
+    diagEls += '<line x1="'+spa.x.toFixed(1)+'" y1="'+spa.y.toFixed(1)+'" x2="'+spb.x.toFixed(1)+'" y2="'+spb.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.55"/>';
+    var mx=(spa.x+spb.x)/2, my=(spa.y+spb.y)/2;
+    diagEls += '<text x="'+mx.toFixed(1)+'" y="'+(my-5).toFixed(1)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="'+v.labelColor+'" opacity="0.75">'+Math.round(d.length)+'</text>';
+  });
+
+  var dots = "";
+  b.points.forEach(function(p,i){
+    var sp = toSvg(p);
+    dots += '<circle cx="'+sp.x.toFixed(1)+'" cy="'+sp.y.toFixed(1)+'" r="4.5" fill="'+v.dotColor+'" stroke="'+v.labelBg+'" stroke-width="1.5"/>'+
+      '<text x="'+sp.x.toFixed(1)+'" y="'+(sp.y-10).toFixed(1)+'" text-anchor="middle" font-family="Archivo, sans-serif" font-size="11" font-weight="700" fill="'+v.strokeColor+'">'+pointLabel(i)+'</text>';
+  });
+
+  var dragEl = "";
+  if (b.drag){
+    if (b.drag.mode==="wall-first"){
+      var s0=toSvg(b.drag.startRaw), s1=toSvg(b.drag.curRaw);
+      dragEl = '<line x1="'+s0.x.toFixed(1)+'" y1="'+s0.y.toFixed(1)+'" x2="'+s1.x.toFixed(1)+'" y2="'+s1.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
+    } else if (b.drag.mode==="wall-next"){
+      var last=b.points[b.points.length-1];
+      var s2=toSvg(last), s3=toSvg(b.drag.curRaw);
+      dragEl = '<line x1="'+s2.x.toFixed(1)+'" y1="'+s2.y.toFixed(1)+'" x2="'+s3.x.toFixed(1)+'" y2="'+s3.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
+    } else if (b.drag.mode==="diagonal"){
+      var s4=toSvg(b.points[b.drag.aIdx]), s5=toSvg(b.drag.curRaw);
+      dragEl = '<line x1="'+s4.x.toFixed(1)+'" y1="'+s4.y.toFixed(1)+'" x2="'+s5.x.toFixed(1)+'" y2="'+s5.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="1.6" stroke-dasharray="4 4" opacity="0.85"/>';
+    }
+  }
+
+  var emptyHint = (!b.points.length && !b.drag) ? '<text x="'+(CANVAS_W/2)+'" y="'+(CANVAS_H/2)+'" text-anchor="middle" font-family="Public Sans, sans-serif" font-size="13" fill="'+v.labelColor+'" opacity="0.45">Проведите пальцем первую стену</text>' : "";
+
+  return '<svg id="builderSvg" viewBox="0 0 '+CANVAS_W+' '+CANVAS_H+'" width="100%" height="100%" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">'+
+    grid+pathEl+diagEls+dragEl+dots+wallLabels+emptyHint+'</svg>';
+}
+function renderCanvasOnly(){
+  var wrap = document.getElementById("builderSvgWrap");
+  if (!wrap) return;
+  wrap.innerHTML = buildBuilderCanvasSvg(NAV.builder);
+}
+
+function renderSegList(b){
+  if (!b.points.length) return "";
+  var rows = "";
+  for (var i=0;i<b.wallLengths.length;i++){
+    var tag = pointLabel(i)+pointLabel((i+1)%b.points.length);
+    if (b.editSeg && b.editSeg.kind==="wall" && b.editSeg.idx===i){
+      rows += '<div class="wall-edit-row"><span class="wtag">'+tag+'</span><input class="input input-num" id="editSegInput" type="number" inputmode="decimal" value="'+b.wallLengths[i]+'"><button class="btn btn-sm btn-primary" data-act="confirmEditSeg" data-kind="wall" data-idx="'+i+'">✓</button><button class="btn btn-sm btn-ghost" data-act="cancelEditSeg">✕</button></div>';
+    } else {
+      rows += '<div class="wall-row"><span class="wtag">'+tag+'</span><span class="wval">'+b.wallLengths[i]+' см</span><button data-act="editSeg" data-kind="wall" data-idx="'+i+'">✎</button></div>';
+    }
+  }
+  b.diagonals.forEach(function(d,i){
+    var tag = pointLabel(d.a)+'–'+pointLabel(d.b);
+    if (b.editSeg && b.editSeg.kind==="diag" && b.editSeg.idx===i){
+      rows += '<div class="wall-edit-row"><span class="wturn">↳ '+tag+'</span><input class="input input-num" id="editSegInput" type="number" inputmode="decimal" value="'+d.length+'"><button class="btn btn-sm btn-primary" data-act="confirmEditSeg" data-kind="diag" data-idx="'+i+'">✓</button><button class="btn btn-sm btn-ghost" data-act="cancelEditSeg">✕</button></div>';
+    } else {
+      rows += '<div class="wall-row"><span class="wturn">↳ диагональ '+tag+'</span><span class="wval">'+d.length+' см</span><button data-act="editSeg" data-kind="diag" data-idx="'+i+'">✎</button><button data-act="deleteDiag" data-idx="'+i+'">🗑</button></div>';
+    }
+  });
+  return '<div class="wall-log">'+rows+'</div>';
+}
+
+function pendingLabel(b){
+  var p = b.pending;
+  if (p.type==="wall"){
+    if (p.closing) return "Стена "+pointLabel(b.points.length-1)+"–"+pointLabel(0)+" (замыкает контур)";
+    if (p.newPoints.length===2) return "Стена "+pointLabel(0)+"–"+pointLabel(1);
+    return "Стена "+pointLabel(b.points.length-1)+"–"+pointLabel(b.points.length);
+  }
+  return "Диагональ "+pointLabel(p.aIdx)+"–"+pointLabel(p.bIdx);
+}
+
+function renderBuilderScreen(){
+  var b = NAV.builder;
+  var canvasHtml, body;
+
+  if (b.resultMode && b.closed && !b.pending){
+    var g = solveShape(b.points, b.wallLengths, b.diagonals);
+    canvasHtml = polygonSvg(g.vertices, Object.assign({width:CANVAS_W,height:CANVAS_H,pad:26,walls:b.wallLengths,diagonals:b.diagonals}, svgCssVars()));
+    var need = Math.max(0, g.needDiagonals-g.haveDiagonals);
+    var banner;
+    if (g.maxErr>0.04){
+      banner = '<div class="banner banner-warn">⚠ <span><b>Замеры не сходятся</b> (расхождение '+(g.maxErr*100).toFixed(0)+'%). Проверьте длины стен и диагоналей.</span></div>';
+    } else if (need>0){
+      banner = '<div class="banner banner-warn">💡 <span>В сложных углах для точности рекомендуем добавить ещё '+need+' диагональ'+(need===1?"":"и")+'. Можно сохранить и так.</span></div>';
+    } else {
+      banner = '<div class="banner banner-good">✓ <span>Форма определена точно.</span></div>';
+    }
+    body = '<div class="result-stats">'+
+      '<div class="result-stat"><div class="result-stat-value num">'+fmtM2(g.area)+'</div><div class="result-stat-label">Площадь</div></div>'+
+      '<div class="result-stat"><div class="result-stat-value num">'+fmtM(g.perimeter)+'</div><div class="result-stat-label">Периметр</div></div>'+
+      '</div>'+banner+
+      '<div class="btn-row"><button class="btn btn-secondary" data-act="addDiagonalMore">+ Диагональ</button><button class="btn btn-secondary" data-act="reopenBuilder">Изменить</button></div>'+
+      '<div class="field"><div class="field-label">Название замера</div><input class="input" id="measNameInput" type="text" value="'+escapeHtml(b.name)+'"></div>'+
+      '<button class="btn btn-primary btn-block" data-act="saveMeasurement">Сохранить</button>';
+  } else {
+    canvasHtml = buildBuilderCanvasSvg(b);
+    if (b.pending){
+      body = renderSegList(b) +
+        '<div class="field"><div class="field-label">'+pendingLabel(b)+'</div>'+
+        '<div class="input-suffix-wrap"><input class="input input-num" id="pendingLenInput" type="number" inputmode="decimal" placeholder="0" autofocus><span class="input-suffix">см</span></div></div>'+
+        '<div class="btn-row"><button class="btn btn-ghost" data-act="cancelPending">Отмена</button><button class="btn btn-primary" data-act="confirmPending">Готово</button></div>';
+    } else {
+      var canClose = b.points.length>=3 && !b.closed;
+      var modeToggle = '<div class="dir-toggle">'+
+        '<button class="dir-btn '+(b.mode==="wall"?"active":"")+'" data-act="setMode" data-mode="wall" '+(b.closed?"disabled":"")+'>✏️ Стена</button>'+
+        '<button class="dir-btn '+(b.mode==="diagonal"?"active":"")+'" data-act="setMode" data-mode="diagonal" '+(b.points.length<3?"disabled":"")+'>📏 Диагональ</button>'+
+        '</div>';
+      var hint = '<div class="canvas-hint">'+(b.mode==="wall" ? "Проведите пальцем по клеточкам — от последней точки до следующего угла" : "Проведите линию между двумя уже поставленными точками")+'</div>';
+      body = modeToggle + hint + renderSegList(b) +
+        (canClose ? '<button class="btn btn-secondary btn-block" data-act="closeToStart">Замкнуть контур на '+pointLabel(0)+'</button>' : "")+
+        '<div class="btn-row">'+
+        (b.points.length>0 ? '<button class="btn btn-secondary" data-act="undoBuilder">Отменить последний шаг</button>' : '<button class="btn btn-ghost" data-act="cancelBuilder">Отмена</button>')+
+        '</div>'+
+        (b.closed ? '<button class="btn btn-primary btn-block" data-act="showResult">Готово — посчитать площадь →</button>' : "");
+    }
+  }
+
+  return topbar({back:"cancelBuilderConfirm", eyebrow:"Замер", title: b.editingId ? "Редактирование" : "Новый замер"})+
+    '<div class="screen">'+
+    '<div class="builder-canvas" id="builderSvgWrap">'+canvasHtml+'</div>'+
+    body+
+    '</div>';
+}
+
+function renderModal(){
+  var m = NAV.modal;
+  if (m.type==="rename"){
+    return '<div class="modal-backdrop" data-act="closeModalBackdrop"><div class="modal" data-act="noop">'+
+      '<div class="modal-title">'+escapeHtml(m.title)+'</div>'+
+      '<input class="input" id="renameInput" type="text" value="'+escapeHtml(m.value)+'" autofocus>'+
+      '<div class="btn-row"><button class="btn btn-ghost" data-act="closeModal">Отмена</button><button class="btn btn-primary" data-act="confirmRename">Сохранить</button></div>'+
+      '</div></div>';
+  }
+  if (m.type==="confirmDelete"){
+    return '<div class="modal-backdrop" data-act="closeModalBackdrop"><div class="modal" data-act="noop">'+
+      '<div class="modal-title">Удалить «'+escapeHtml(m.name)+'»?</div>'+
+      '<div style="color:var(--ink-dim);font-size:13.5px;">Это действие нельзя отменить.</div>'+
+      '<div class="btn-row"><button class="btn btn-ghost" data-act="closeModal">Отмена</button><button class="btn btn-danger" data-act="confirmDelete">Удалить</button></div>'+
+      '</div></div>';
+  }
+  if (m.type==="cancelBuilderConfirm"){
+    return '<div class="modal-backdrop" data-act="closeModalBackdrop"><div class="modal" data-act="noop">'+
+      '<div class="modal-title">Прервать замер?</div>'+
+      '<div style="color:var(--ink-dim);font-size:13.5px;">Несохранённый контур будет потерян.</div>'+
+      '<div class="btn-row"><button class="btn btn-ghost" data-act="closeModal">Продолжить замер</button><button class="btn btn-danger" data-act="confirmCancelBuilder">Прервать</button></div>'+
+      '</div></div>';
+  }
+  return "";
+}
+
+// ---------- canvas pointer interaction ----------
+function roughFromClient(clientX, clientY){
+  var wrap = document.getElementById("builderSvgWrap");
+  if (!wrap || !CANVAS_XFORM) return {x:0,y:0};
+  var rect = wrap.getBoundingClientRect();
+  var px = (clientX-rect.left) * (CANVAS_XFORM.W/rect.width);
+  var py = (clientY-rect.top) * (CANVAS_XFORM.H/rect.height);
+  var x = CANVAS_XFORM.minX + (px-CANVAS_XFORM.offsetX)/CANVAS_XFORM.scale;
+  var y = CANVAS_XFORM.minY + (CANVAS_XFORM.H-CANVAS_XFORM.offsetY-py)/CANVAS_XFORM.scale;
+  return {x:x, y:y};
+}
+function snapToGrid(p){ return {x:Math.round(p.x), y:Math.round(p.y)}; }
+function nearestExistingPoint(p, points, maxDist){
+  var best=-1, bestD=Infinity;
+  points.forEach(function(pt,i){ var d=Math.hypot(pt.x-p.x, pt.y-p.y); if (d<bestD){ bestD=d; best=i; } });
+  if (best>=0 && bestD<=maxDist) return best;
+  return -1;
+}
+function onCanvasPointerDown(e){
+  var b = NAV.builder;
+  if (!b || b.resultMode || b.pending) return;
+  e.preventDefault();
+  var raw = roughFromClient(e.clientX, e.clientY);
+  var frozenBounds = computeFitBounds(b.points);
+  if (b.mode==="wall"){
+    if (b.closed) return;
+    if (b.points.length===0){ b.drag = {mode:"wall-first", startRaw:raw, curRaw:raw, bounds:frozenBounds}; }
+    else { b.drag = {mode:"wall-next", curRaw:raw, bounds:frozenBounds}; }
+  } else {
+    var nearIdx = nearestExistingPoint(raw, b.points, 1.15);
+    if (nearIdx<0) return;
+    b.drag = {mode:"diagonal", aIdx:nearIdx, curRaw:raw, bounds:frozenBounds};
+  }
+  renderCanvasOnly();
+  document.addEventListener("pointermove", onCanvasPointerMove);
+  document.addEventListener("pointerup", onCanvasPointerUp);
+}
+function onCanvasPointerMove(e){
+  var b = NAV.builder;
+  if (!b || !b.drag) return;
+  b.drag.curRaw = roughFromClient(e.clientX, e.clientY);
+  renderCanvasOnly();
+}
+function onCanvasPointerUp(e){
+  document.removeEventListener("pointermove", onCanvasPointerMove);
+  document.removeEventListener("pointerup", onCanvasPointerUp);
+  var b = NAV.builder;
+  if (!b || !b.drag) return;
+  var raw = roughFromClient(e.clientX, e.clientY);
+  var drag = b.drag; b.drag = null;
+  if (drag.mode==="wall-first"){
+    var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(raw);
+    if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.6){ render(); return; }
+    b.pending = {type:"wall", newPoints:[p0,p1], closing:false};
+  } else if (drag.mode==="wall-next"){
+    var last = b.points[b.points.length-1];
+    var pnew = snapToGrid(raw);
+    if (b.points.length>=3 && Math.hypot(pnew.x-b.points[0].x, pnew.y-b.points[0].y) < 0.75){
+      b.pending = {type:"wall", newPoints:[], closing:true};
+    } else if (Math.hypot(pnew.x-last.x, pnew.y-last.y) < 0.6){
+      render(); return;
+    } else {
+      b.pending = {type:"wall", newPoints:[pnew], closing:false};
+    }
+  } else if (drag.mode==="diagonal"){
+    var bIdx = nearestExistingPoint(raw, b.points, 1.15);
+    if (bIdx<0 || bIdx===drag.aIdx){ render(); return; }
+    var dup = b.diagonals.some(function(d){ return (d.a===drag.aIdx&&d.b===bIdx)||(d.a===bIdx&&d.b===drag.aIdx); });
+    var K = b.points.length;
+    var isEdge = (Math.abs(drag.aIdx-bIdx)===1) || (drag.aIdx===0&&bIdx===K-1) || (bIdx===0&&drag.aIdx===K-1);
+    if (dup || isEdge){ toast("Такая линия уже есть"); render(); return; }
+    b.pending = {type:"diagonal", aIdx:drag.aIdx, bIdx:bIdx};
+  }
+  render();
+}
+
+// ---------- live (non-rerendering) input wiring ----------
+function wireLiveInputs(){
+  var canvasWrap = document.getElementById("builderSvgWrap");
+  if (canvasWrap){ canvasWrap.addEventListener("pointerdown", onCanvasPointerDown); }
+  var pendingInput = document.getElementById("pendingLenInput");
+  if (pendingInput){ pendingInput.focus(); }
+  var renameInput = document.getElementById("renameInput");
+  if (renameInput){ renameInput.focus(); renameInput.select(); }
+  var editSegInput = document.getElementById("editSegInput");
+  if (editSegInput){ editSegInput.focus(); editSegInput.select(); }
+}
+
+// ---------- actions ----------
+function readNum(id, fallback){
+  var elx = document.getElementById(id);
+  if (!elx) return fallback;
+  var v = parseFloat(elx.value);
+  return isNaN(v) ? fallback : v;
+}
+
+function actions(act, ds){
+  var b = NAV.builder;
+  if (act==="newObject"){
+    var o = {id:uid(), name:"Объект "+(STATE.objects.length+1), createdAt:nowIso(), apartments:[]};
+    STATE.objects.push(o); persist();
+    NAV = {view:"object", objectId:o.id}; render(); return;
+  }
+  if (act==="openObject"){ NAV = {view:"object", objectId:ds.id}; render(); return; }
+  if (act==="goHome"){ NAV = {view:"home"}; render(); return; }
+  if (act==="backToObject"){ NAV = {view:"object", objectId:NAV.objectId}; render(); return; }
+  if (act==="renameObject"){
+    var o2 = findObject(ds.id);
+    NAV.modal = {type:"rename", level:"object", id:ds.id, title:"Название объекта", value:o2.name};
+    render(); return;
+  }
+  if (act && act.indexOf("renameObject:")===0){
+    var oid = act.split(":")[1]; var o3=findObject(oid);
+    NAV.modal = {type:"rename", level:"object", id:oid, title:"Название объекта", value:o3.name};
+    render(); return;
+  }
+  if (act==="renameApartment"){
+    var obj = findObject(NAV.objectId); var a = findApartment(obj, ds.id);
+    NAV.modal = {type:"rename", level:"apartment", id:ds.id, title:"Название квартиры", value:a.name};
+    render(); return;
+  }
+  if (act && act.indexOf("renameApartment:")===0){
+    var aid = act.split(":")[1]; var obj4=findObject(NAV.objectId); var a4=findApartment(obj4,aid);
+    NAV.modal = {type:"rename", level:"apartment", id:aid, title:"Название квартиры", value:a4.name};
+    render(); return;
+  }
+  if (act==="confirmRename"){
+    var val = document.getElementById("renameInput").value.trim();
+    if (val){
+      if (NAV.modal.level==="object"){ findObject(NAV.modal.id).name = val; }
+      else if (NAV.modal.level==="apartment"){ findApartment(findObject(NAV.objectId), NAV.modal.id).name = val; }
+      else if (NAV.modal.level==="measurement"){ findMeasurement(findApartment(findObject(NAV.objectId),NAV.apartmentId), NAV.modal.id).name = val; }
+      persist();
+    }
+    NAV.modal = null; render(); return;
+  }
+  if (act==="closeModal" || act==="closeModalBackdrop"){ NAV.modal = null; render(); return; }
+  if (act==="deleteObject"){
+    var o5 = findObject(ds.id);
+    NAV.modal = {type:"confirmDelete", level:"object", id:ds.id, name:o5.name};
+    render(); return;
+  }
+  if (act==="deleteApartment"){
+    var obj6=findObject(NAV.objectId); var a6=findApartment(obj6,ds.id);
+    NAV.modal = {type:"confirmDelete", level:"apartment", id:ds.id, name:a6.name};
+    render(); return;
+  }
+  if (act==="confirmDelete"){
+    if (NAV.modal.level==="object"){
+      STATE.objects = STATE.objects.filter(function(o){return o.id!==NAV.modal.id;});
+      persist(); NAV = {view:"home"};
+    } else if (NAV.modal.level==="apartment"){
+      var obj7 = findObject(NAV.objectId);
+      obj7.apartments = obj7.apartments.filter(function(a){return a.id!==NAV.modal.id;});
+      persist(); NAV = {view:"object", objectId:obj7.id};
+    } else if (NAV.modal.level==="measurement"){
+      var obj8=findObject(NAV.objectId); var apt8=findApartment(obj8,NAV.apartmentId);
+      apt8.measurements = apt8.measurements.filter(function(m){return m.id!==NAV.modal.id;});
+      persist(); NAV = {view:"apartment", objectId:obj8.id, apartmentId:apt8.id};
+    }
+    NAV.modal = null; render(); return;
+  }
+  if (act==="openApartment"){ NAV = {view:"apartment", objectId:NAV.objectId, apartmentId:ds.id}; render(); return; }
+  if (act==="newApartment"){
+    var obj9 = findObject(NAV.objectId);
+    var a9 = {id:uid(), name:"Квартира "+(obj9.apartments.length+1), createdAt:nowIso(), measurements:[]};
+    obj9.apartments.push(a9); persist();
+    NAV = {view:"apartment", objectId:obj9.id, apartmentId:a9.id}; render(); return;
+  }
+  if (act==="openMeasurement"){
+    var obj10=findObject(NAV.objectId); var apt10=findApartment(obj10,NAV.apartmentId); var m10=findMeasurement(apt10,ds.id);
+    NAV.view="builder"; NAV.builder = newBuilder(obj10.id, apt10.id, m10); render(); return;
+  }
+  if (act==="newMeasurement"){
+    var obj11=findObject(NAV.objectId); var apt11=findApartment(obj11,NAV.apartmentId);
+    NAV.view="builder"; NAV.builder = newBuilder(obj11.id, apt11.id, null);
+    NAV.builder.name = "Замер "+(apt11.measurements.length+1);
+    render(); return;
+  }
+  if (act==="cancelBuilderConfirm"){
+    if (b.points.length===0 && !b.pending){ NAV = {view:"apartment", objectId:b.objId, apartmentId:b.aptId}; render(); return; }
+    NAV.modal = {type:"cancelBuilderConfirm"}; render(); return;
+  }
+  if (act==="confirmCancelBuilder"){
+    var objId=b.objId, aptId=b.aptId; NAV = {view:"apartment", objectId:objId, apartmentId:aptId}; NAV.modal=null; render(); return;
+  }
+  if (act==="cancelBuilder"){
+    NAV = {view:"apartment", objectId:b.objId, apartmentId:b.aptId}; render(); return;
+  }
+  if (act==="setMode"){
+    if (ds.mode==="wall" && b.closed) return;
+    b.mode = ds.mode; render(); return;
+  }
+  if (act==="closeToStart"){
+    if (b.points.length<3) return;
+    b.pending = {type:"wall", newPoints:[], closing:true};
+    render(); return;
+  }
+  if (act==="confirmPending"){
+    var lenv = readNum("pendingLenInput", null);
+    if (!lenv || lenv<=0){ toast("Введите длину в см"); return; }
+    var p = b.pending;
+    if (p.type==="wall"){
+      if (p.closing){ b.wallLengths.push(lenv); b.closed = true; b.resultMode = true; }
+      else { p.newPoints.forEach(function(pt){ b.points.push(pt); }); b.wallLengths.push(lenv); }
+    } else if (p.type==="diagonal"){
+      b.diagonals.push({a:p.aIdx, b:p.bIdx, length:lenv});
+      if (b.closed) b.resultMode = true;
+    }
+    b.pending = null;
+    render(); return;
+  }
+  if (act==="cancelPending"){ b.pending = null; render(); return; }
+  if (act==="showResult"){ b.resultMode = true; render(); return; }
+  if (act==="addDiagonalMore"){ b.resultMode = false; b.mode = "diagonal"; render(); return; }
+  if (act==="reopenBuilder"){
+    var nameEl = document.getElementById("measNameInput");
+    if (nameEl) b.name = nameEl.value;
+    b.resultMode = false; render(); return;
+  }
+  if (act==="undoBuilder"){
+    if (b.pending){ b.pending = null; render(); return; }
+    if (b.closed){
+      b.wallLengths.pop(); b.closed = false; b.resultMode = false; b.mode = "wall";
+      render(); return;
+    }
+    if (b.points.length>0){
+      b.wallLengths.pop();
+      if (b.points.length<=2){ b.points = []; } else { b.points.pop(); }
+    }
+    render(); return;
+  }
+  if (act==="editSeg"){ b.editSeg = {kind:ds.kind, idx:parseInt(ds.idx,10)}; render(); return; }
+  if (act==="cancelEditSeg"){ b.editSeg = null; render(); return; }
+  if (act==="confirmEditSeg"){
+    var idxv = parseInt(ds.idx,10);
+    var v9 = readNum("editSegInput", null);
+    if (v9 && v9>0){
+      if (ds.kind==="wall") b.wallLengths[idxv] = v9;
+      else b.diagonals[idxv].length = v9;
+    }
+    b.editSeg = null; render(); return;
+  }
+  if (act==="deleteDiag"){
+    var di = parseInt(ds.idx,10);
+    b.diagonals.splice(di,1);
+    render(); return;
+  }
+  if (act==="saveMeasurement"){
+    var nameVal = document.getElementById("measNameInput").value.trim() || "Замер";
+    var obj12 = findObject(b.objId); var apt12 = findApartment(obj12, b.aptId);
+    var newMeas = {id: b.editingId||uid(), name:nameVal, createdAt:nowIso(),
+      points: b.points.map(function(p){return {x:p.x,y:p.y};}),
+      wallLengths: b.wallLengths.slice(),
+      diagonals: b.diagonals.map(function(d){return {a:d.a,b:d.b,length:d.length};})};
+    if (b.editingId){
+      var idxM = apt12.measurements.findIndex(function(m){return m.id===b.editingId;});
+      if (idxM>=0){ newMeas.createdAt = apt12.measurements[idxM].createdAt; apt12.measurements[idxM] = newMeas; }
+      else { apt12.measurements.push(newMeas); }
+    } else {
+      apt12.measurements.push(newMeas);
+    }
+    persist();
+    NAV = {view:"apartment", objectId:obj12.id, apartmentId:apt12.id}; render(); return;
+  }
+  if (act==="exportObject"){
+    var obj13 = findObject(ds.id);
+    var html = buildReportHtml(obj13);
+    var fname = "Замеры_"+obj13.name.replace(/[^a-zA-Zа-яА-Я0-9_\- ]/g,"").replace(/\s+/g,"_")+".html";
+    exportFile(fname, "text/html", html);
+    return;
+  }
+  if (act==="backupExport"){
+    var json = JSON.stringify(STATE, null, 2);
+    exportFile("ceilings_backup_"+new Date().toISOString().slice(0,10)+".json", "application/json", json);
+    return;
+  }
+  if (act==="backupImport"){
+    document.getElementById("importFile").click();
+    return;
+  }
+}
+
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-act]");
+  if (!t) return;
+  var act = t.getAttribute("data-act");
+  actions(act, t.dataset);
+});
+document.addEventListener("change", function(e){
+  if (e.target && e.target.id==="importFile"){
+    var f = e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var data = JSON.parse(reader.result);
+        if (data && Array.isArray(data.objects)){
+          STATE = data; persist(); NAV = {view:"home"}; render(); toast("Данные восстановлены");
+        } else { toast("Файл не похож на резервную копию"); }
+      }catch(err){ toast("Не удалось прочитать файл"); }
+    };
+    reader.readAsText(f);
+  }
+});
+
+render();
+})();
+</script>
