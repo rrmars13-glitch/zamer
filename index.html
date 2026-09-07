@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Замер Потолков</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -42,7 +42,7 @@
   }
   *{box-sizing:border-box;}
   body{background:var(--bg);color:var(--ink);font-family:var(--font-body);margin:0;-webkit-tap-highlight-color:transparent;}
-  #app{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:28px;}
+  #app{max-width:560px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;padding-bottom:28px;}
   button{font-family:inherit;cursor:pointer;}
   input{font-family:inherit;}
   .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
@@ -54,7 +54,7 @@
   .topbar-title{font-family:var(--font-display);font-weight:800;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .topbar-action{border:none;background:var(--accent-soft);color:var(--accent-soft-ink);font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex:none;}
 
-  .screen{padding:14px 16px 100px;display:flex;flex-direction:column;gap:14px;flex:1;}
+  .screen{padding:14px 16px calc(100px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;flex:1;}
 
   .totals-bar{display:flex;gap:8px;}
   .stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 8px;text-align:center;}
