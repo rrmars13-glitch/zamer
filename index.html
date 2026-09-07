@@ -183,15 +183,15 @@ function findApartment(obj,id){ return obj.apartments.find(function(a){return a.
 function findMeasurement(apt,id){ return apt.measurements.find(function(m){return m.id===id;}); }
 
 // ---------- geometry: distance-constraint solver (perimeter + diagonals) ----------
-function solveShape(roughPoints, wallLengths, diagonals){
+// Legacy geometry engine: pure distance-constraint relaxation with a weak pull back toward
+// the as-drawn rough shape. Kept verbatim for measurements saved before per-edge 90°-lock
+// tracking existed (no orthoFlags), so old data keeps rendering exactly as it always has.
+function solveShapeLegacyRelax(roughPoints, wallLengths, diagonals){
   var K = roughPoints.length;
   var perimeter = (wallLengths||[]).reduce(function(a,b){return a+b;},0);
   if (K < 3){
     return {vertices:[], area:0, perimeter:perimeter, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:(diagonals||[]).length};
   }
-  // The rough sketch lives on an abstract grid (single-digit units); real lengths are in
-  // centimeters. Rescale the sketch to roughly the real perimeter first, so relaxation
-  // only has to fix relative proportions/angles instead of a ~100x size jump.
   var roughPerim = 0;
   for (var ri=0; ri<K; ri++){ var rp1=roughPoints[ri], rp2=roughPoints[(ri+1)%K]; roughPerim += Math.hypot(rp2.x-rp1.x, rp2.y-rp1.y); }
   var scaleFactor = roughPerim>0.0001 ? perimeter/roughPerim : 1;
@@ -200,11 +200,6 @@ function solveShape(roughPoints, wallLengths, diagonals){
   var constraints = [];
   for (var i=0;i<K;i++){ constraints.push({a:i, b:(i+1)%K, target:wallLengths[i]}); }
   (diagonals||[]).forEach(function(d){ constraints.push({a:d.a, b:d.b, target:d.length}); });
-  // A perimeter loop alone is under-constrained for K>=4 (it can "shear" like scissors
-  // without changing any side length, and repeated relaxation can drift toward a
-  // degenerate, zero-area fold along that free direction). A weak pull back toward the
-  // as-drawn rough shape acts as bracing against that drift, while real length
-  // constraints (checked every iteration too) still dominate the final result.
   var ANCHOR_WEIGHT = 0.02;
   var ITER = 300;
   for (var it=0; it<ITER; it++){
@@ -232,6 +227,102 @@ function solveShape(roughPoints, wallLengths, diagonals){
   });
   var needDiagonals = Math.max(0, K-3);
   return {vertices:pos, area:area, perimeter:perimeter, valid:true, maxErr:maxErr, needDiagonals:needDiagonals, haveDiagonals:(diagonals||[]).length};
+}
+
+// Current geometry engine: every edge drawn with the 90°-lock on keeps the EXACT compass
+// direction it was drawn with (horizontal or vertical), no matter what real length the user
+// later types in — so two locked edges meeting at a corner stay exactly perpendicular. Only
+// edges the person explicitly drew as "free angle" are allowed to take on a different
+// direction, and even then only a measured diagonal (not the rough finger-drawn angle) is
+// trusted to pin down their real direction.
+function solveShape(roughPoints, wallLengths, diagonals, orthoFlags){
+  if (!orthoFlags){
+    // no per-edge lock data (older saved measurement) - fall back to the original behavior
+    return solveShapeLegacyRelax(roughPoints, wallLengths, diagonals);
+  }
+  var K = roughPoints.length;
+  var perimeter = (wallLengths||[]).reduce(function(a,b){return a+b;},0);
+  if (K < 3){
+    return {vertices:[], area:0, perimeter:perimeter, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:(diagonals||[]).length};
+  }
+  var dir = [];
+  for (var i=0;i<K;i++){
+    var p1=roughPoints[i], p2=roughPoints[(i+1)%K];
+    var dx=p2.x-p1.x, dy=p2.y-p1.y;
+    if (orthoFlags[i]){
+      // dominant-axis rounding: exact for normally-drawn locked edges (already perfectly
+      // axis-aligned by construction), and a safe fallback for the closing edge (whose rough
+      // endpoint is "close to" the start point rather than exactly on-axis with it).
+      if (Math.abs(dx) >= Math.abs(dy)) dir.push({x:(dx>=0?1:-1), y:0});
+      else dir.push({x:0, y:(dy>=0?1:-1)});
+    } else {
+      var ln = Math.hypot(dx,dy)||0.0001;
+      dir.push({x:dx/ln, y:dy/ln});
+    }
+  }
+  var pos = [{x:0,y:0}];
+  for (var i2=0;i2<K;i2++){ var prev=pos[i2]; pos.push({x:prev.x+dir[i2].x*wallLengths[i2], y:prev.y+dir[i2].y*wallLengths[i2]}); }
+  var gap = {x:pos[K].x-pos[0].x, y:pos[K].y-pos[0].y};
+  pos = pos.slice(0,K);
+
+  var hasFree = orthoFlags.slice(0,K).some(function(f){return !f;});
+  var haveDiag = (diagonals||[]).length;
+  if (hasFree && haveDiag){
+    // Free edges plus at least one measured diagonal: refine with the same relaxation
+    // approach as before, but every locked edge is re-projected onto its fixed direction
+    // each pass, so it can never drift away from the angle it was actually drawn at.
+    var anchor = pos.map(function(p){return {x:p.x,y:p.y};});
+    var constraints = [];
+    for (var ci0=0; ci0<K; ci0++){ constraints.push({a:ci0, b:(ci0+1)%K, target:wallLengths[ci0]}); }
+    (diagonals||[]).forEach(function(d){ constraints.push({a:d.a, b:d.b, target:d.length}); });
+    var ITER = 250;
+    for (var it=0; it<ITER; it++){
+      for (var ci=0; ci<constraints.length; ci++){
+        var con = constraints[ci];
+        var ddx=pos[con.b].x-pos[con.a].x, ddy=pos[con.b].y-pos[con.a].y;
+        var dist = Math.hypot(ddx,ddy) || 0.0001;
+        var diff = (dist-con.target)/dist;
+        var cx = ddx*diff*0.5, cy = ddy*diff*0.5;
+        if (con.a!==0){ pos[con.a].x += cx; pos[con.a].y += cy; }
+        if (con.b!==0){ pos[con.b].x -= cx; pos[con.b].y -= cy; }
+      }
+      for (var ei=0; ei<K; ei++){
+        if (!orthoFlags[ei]) continue;
+        var aI=ei, bI=(ei+1)%K;
+        var vx=pos[bI].x-pos[aI].x, vy=pos[bI].y-pos[aI].y;
+        var L = Math.hypot(vx,vy) || 0.0001;
+        var tx = dir[ei].x*L, ty = dir[ei].y*L;
+        var cdx = (tx-vx)*0.5, cdy = (ty-vy)*0.5;
+        if (aI!==0){ pos[aI].x -= cdx; pos[aI].y -= cdy; }
+        if (bI!==0){ pos[bI].x += cdx; pos[bI].y += cdy; }
+      }
+      for (var pi=1; pi<K; pi++){
+        pos[pi].x += (anchor[pi].x-pos[pi].x)*0.004;
+        pos[pi].y += (anchor[pi].y-pos[pi].y)*0.004;
+      }
+    }
+  } else {
+    // No free edges (or free edges with no diagonal measured yet): spread out any small
+    // closing mismatch evenly. For a length-consistent, fully right-angled shape this gap
+    // is exactly zero, so nothing moves and every locked angle stays exact.
+    for (var pj=1; pj<K; pj++){
+      pos[pj].x -= gap.x*(pj/K);
+      pos[pj].y -= gap.y*(pj/K);
+    }
+  }
+  var area2=0;
+  for (var j=0;j<K;j++){ var pp1=pos[j], pp2=pos[(j+1)%K]; area2 += pp1.x*pp2.y-pp2.x*pp1.y; }
+  var area = Math.abs(area2)/2;
+  var maxErr = 0;
+  var lenConstraints = [];
+  for (var lc=0; lc<K; lc++){ lenConstraints.push({a:lc, b:(lc+1)%K, target:wallLengths[lc]}); }
+  (diagonals||[]).forEach(function(d){ lenConstraints.push({a:d.a, b:d.b, target:d.length}); });
+  lenConstraints.forEach(function(con){
+    var d = Math.hypot(pos[con.b].x-pos[con.a].x, pos[con.b].y-pos[con.a].y);
+    if (con.target>0){ maxErr = Math.max(maxErr, Math.abs(d-con.target)/con.target); }
+  });
+  var needDiagonals = orthoFlags.slice(0,K).filter(function(f){return !f;}).length;
+  return {vertices:pos, area:area, perimeter:perimeter, valid:true, maxErr:maxErr, needDiagonals:needDiagonals, haveDiagonals:haveDiag};
 }
 
 // Legacy (v1) turn-angle turtle geometry, kept so measurements saved by the first version of the app still open correctly.
@@ -263,7 +354,7 @@ function computeGeomLegacy(walls, turns){
 function computeGeom(m){
   if (!m) return {vertices:[], area:0, perimeter:0, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:0};
   if (m.turns) return computeGeomLegacy(m.walls, m.turns);
-  return solveShape(m.points||[], m.wallLengths||[], m.diagonals||[]);
+  return solveShape(m.points||[], m.wallLengths||[], m.diagonals||[], m.orthoFlags);
 }
 function wallLenArrayOf(m){ return m.turns ? m.walls : m.wallLengths; }
 function diagonalsOf(m){ return m.turns ? [] : (m.diagonals||[]); }
@@ -541,22 +632,27 @@ function renderApartmentScreen(){
 // ---------- builder: draw-on-grid canvas ----------
 function newBuilder(objId, aptId, editingMeas){
   if (editingMeas){
-    var pts, wl, diags;
+    var pts, wl, diags, oflags;
     if (editingMeas.turns){
       var lg = computeGeomLegacy(editingMeas.walls, editingMeas.turns);
       pts = lg.vertices.map(function(p){ return {x:p.x/50, y:p.y/50}; });
       wl = editingMeas.walls.slice();
       diags = [];
+      oflags = undefined;
     } else {
       pts = (editingMeas.points||[]).map(function(p){ return {x:p.x,y:p.y}; });
       wl = (editingMeas.wallLengths||[]).slice();
       diags = (editingMeas.diagonals||[]).map(function(d){ return {a:d.a,b:d.b,length:d.length}; });
+      // older measurements saved before 90°-lock tracking existed have no orthoFlags; leave
+      // undefined so solveShape falls back to the original free-form relaxation for them,
+      // rather than assuming (possibly wrongly) that every edge was a right angle.
+      oflags = editingMeas.orthoFlags ? editingMeas.orthoFlags.slice() : undefined;
     }
     return {objId:objId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
-      points:pts, wallLengths:wl, diagonals:diags, closed:true, resultMode:true, mode:"diagonal",
+      points:pts, wallLengths:wl, diagonals:diags, orthoFlags:oflags, closed:true, resultMode:true, mode:"diagonal",
       snapOrtho:true, measure:null, diagStage:null, editSeg:null, drag:null};
   }
-  return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
+  return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[], orthoFlags:[],
     closed:false, resultMode:false, mode:"wall", snapOrtho:true, measure:null, diagStage:null, editSeg:null, drag:null};
 }
 // forces the dropped point onto a horizontal or vertical line through the anchor
@@ -570,7 +666,7 @@ function snapAxis(anchor, raw){
 // rough-sketch distance -> a plausible starting cm guess (overwritten once the user types a real value)
 function guessLen(p1,p2){ return Math.max(30, Math.round(Math.hypot(p2.x-p1.x,p2.y-p1.y)*100/10)*10); }
 function estimateDiagonalGuess(b, aIdx, bIdx){
-  var g = solveShape(b.points, b.wallLengths, b.diagonals);
+  var g = solveShape(b.points, b.wallLengths, b.diagonals, b.orthoFlags);
   if (g.vertices && g.vertices[aIdx] && g.vertices[bIdx]){
     return Math.max(1, Math.round(Math.hypot(g.vertices[bIdx].x-g.vertices[aIdx].x, g.vertices[bIdx].y-g.vertices[aIdx].y)));
   }
@@ -582,7 +678,13 @@ function startMeasureQueue(b, kind, fromIdx, toIdx){
 }
 function finishMeasureQueue(b, kind){
   b.measure = null;
-  if (kind==="wall"){ b.diagStage = "choice"; }
+  if (kind==="wall"){
+    // Every corner was locked to 90° while drawing (no "free angle" wall) - the shape is
+    // already fully and exactly determined, so there's nothing for a diagonal to fix.
+    var hasFreeEdge = (b.orthoFlags||[]).some(function(f){ return !f; });
+    if (hasFreeEdge) b.diagStage = "choice";
+    else { b.resultMode = true; b.mode = "wall"; }
+  }
   else { b.resultMode = true; b.mode = "wall"; }
 }
 
@@ -708,7 +810,7 @@ function renderSegList(b){
 
 // ---------- live length-entry keypad screen (walls, then diagonals) ----------
 function buildMeasureCanvasSvg(b){
-  var g = solveShape(b.points, b.wallLengths, b.diagonals);
+  var g = solveShape(b.points, b.wallLengths, b.diagonals, b.orthoFlags);
   var vertices = g.vertices;
   var W=CANVAS_W, H=CANVAS_H, pad=32;
   if (!vertices.length){ return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"></svg>'; }
@@ -781,7 +883,7 @@ function renderMeasureScreen(b){
     '</div>';
 }
 function renderDiagChoiceScreen(b){
-  var g = solveShape(b.points, b.wallLengths, []);
+  var g = solveShape(b.points, b.wallLengths, [], b.orthoFlags);
   var canvasHtml = polygonSvg(g.vertices, Object.assign({width:CANVAS_W,height:CANVAS_H,pad:26,walls:b.wallLengths}, svgCssVars()));
   var canAuto = b.points.length>=4;
   return topbar({back:"cancelBuilderConfirm", eyebrow:"Замер", title:"Диагонали"})+
@@ -803,7 +905,7 @@ function renderBuilderScreen(){
   var canvasHtml, body;
 
   if (b.resultMode && b.closed){
-    var g = solveShape(b.points, b.wallLengths, b.diagonals);
+    var g = solveShape(b.points, b.wallLengths, b.diagonals, b.orthoFlags);
     canvasHtml = polygonSvg(g.vertices, Object.assign({width:CANVAS_W,height:CANVAS_H,pad:26,walls:b.wallLengths,diagonals:b.diagonals}, svgCssVars()));
     var need = Math.max(0, g.needDiagonals-g.haveDiagonals);
     var banner;
@@ -927,12 +1029,14 @@ function onCanvasPointerUp(e){
     if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.6){ render(); return; }
     b.points.push(p0); b.points.push(p1);
     b.wallLengths.push(guessLen(p0,p1));
+    b.orthoFlags.push(b.snapOrtho);
   } else if (drag.mode==="wall-next"){
     var last = b.points[b.points.length-1];
     var rawTarget = b.snapOrtho ? snapAxis(last, raw) : raw;
     var pnew = snapToGrid(rawTarget);
     if (b.points.length>=3 && Math.hypot(pnew.x-b.points[0].x, pnew.y-b.points[0].y) < 0.75){
       b.wallLengths.push(guessLen(last, b.points[0]));
+      b.orthoFlags.push(b.snapOrtho);
       b.closed = true;
       startMeasureQueue(b, "wall", 0, b.wallLengths.length-1);
     } else if (Math.hypot(pnew.x-last.x, pnew.y-last.y) < 0.6){
@@ -940,6 +1044,7 @@ function onCanvasPointerUp(e){
     } else {
       b.points.push(pnew);
       b.wallLengths.push(guessLen(last,pnew));
+      b.orthoFlags.push(b.snapOrtho);
     }
   } else if (drag.mode==="diagonal"){
     var bIdx = nearestExistingPoint(raw, b.points, 1.15);
@@ -1075,6 +1180,7 @@ function actions(act, ds){
     if (b.points.length<3) return;
     var lastPt = b.points[b.points.length-1];
     b.wallLengths.push(guessLen(lastPt, b.points[0]));
+    b.orthoFlags.push(b.snapOrtho);
     b.closed = true;
     startMeasureQueue(b, "wall", 0, b.wallLengths.length-1);
     render(); return;
@@ -1114,7 +1220,7 @@ function actions(act, ds){
   if (act==="diagAuto"){
     var K2 = b.points.length;
     if (K2>=4){
-      var g0 = solveShape(b.points, b.wallLengths, []);
+      var g0 = solveShape(b.points, b.wallLengths, [], b.orthoFlags);
       for (var fi=2; fi<=K2-2; fi++){
         var fguess = Math.round(Math.hypot(g0.vertices[fi].x-g0.vertices[0].x, g0.vertices[fi].y-g0.vertices[0].y));
         b.diagonals.push({a:0, b:fi, length:Math.max(1,fguess)});
@@ -1135,11 +1241,11 @@ function actions(act, ds){
   }
   if (act==="undoBuilder"){
     if (b.closed){
-      b.wallLengths.pop(); b.closed = false; b.resultMode = false; b.mode = "wall";
+      b.wallLengths.pop(); b.orthoFlags.pop(); b.closed = false; b.resultMode = false; b.mode = "wall";
       render(); return;
     }
     if (b.points.length>0){
-      b.wallLengths.pop();
+      b.wallLengths.pop(); b.orthoFlags.pop();
       if (b.points.length<=2){ b.points = []; } else { b.points.pop(); }
     }
     render(); return;
@@ -1163,9 +1269,14 @@ function actions(act, ds){
   if (act==="saveMeasurement"){
     var nameVal = document.getElementById("measNameInput").value.trim() || "Замер";
     var obj12 = findObject(b.objId); var apt12 = findApartment(obj12, b.aptId);
+    // Only keep orthoFlags if every wall actually has one recorded (the normal case for
+    // anything drawn since the 90°-lock feature shipped) - a partial/missing set is worse
+    // than none, since solveShape would otherwise misread untracked edges as "free angle".
+    var oflagsOk = b.orthoFlags && b.orthoFlags.length === b.wallLengths.length;
     var newMeas = {id: b.editingId||uid(), name:nameVal, createdAt:nowIso(),
       points: b.points.map(function(p){return {x:p.x,y:p.y};}),
       wallLengths: b.wallLengths.slice(),
+      orthoFlags: oflagsOk ? b.orthoFlags.slice() : undefined,
       diagonals: b.diagonals.map(function(d){return {a:d.a,b:d.b,length:d.length};})};
     if (b.editingId){
       var idxM = apt12.measurements.findIndex(function(m){return m.id===b.editingId;});
