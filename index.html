@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Замер Потолков</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -42,7 +42,7 @@
   }
   *{box-sizing:border-box;}
   body{background:var(--bg);color:var(--ink);font-family:var(--font-body);margin:0;-webkit-tap-highlight-color:transparent;}
-  #app{max-width:560px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;padding-bottom:28px;}
+  #app{max-width:560px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;padding-bottom:0;}
   button{font-family:inherit;cursor:pointer;}
   input{font-family:inherit;}
   .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
@@ -54,7 +54,7 @@
   .topbar-title{font-family:var(--font-display);font-weight:800;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .topbar-action{border:none;background:var(--accent-soft);color:var(--accent-soft-ink);font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex:none;}
 
-  .screen{padding:14px 16px calc(100px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;flex:1;}
+  .screen{padding:14px 16px 100px;display:flex;flex-direction:column;gap:14px;flex:1;}
 
   .totals-bar{display:flex;gap:8px;}
   .stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 8px;text-align:center;}
@@ -100,8 +100,10 @@
   .input-suffix-wrap{position:relative;}
   .input-suffix{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--ink-dim);font-size:13px;pointer-events:none;}
 
-  .builder-canvas{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);aspect-ratio:5/4;box-shadow:var(--shadow);overflow:hidden;touch-action:none;}
-  .canvas-hint{font-size:12px;color:var(--ink-dim);text-align:center;margin-top:-6px;}
+  .builder-canvas{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;touch-action:none;flex:1;min-height:0;}
+  .canvas-hint{font-size:12px;color:var(--ink-dim);text-align:center;margin-top:2px;}
+  .screen-builder{padding:0;display:flex;flex-direction:column;flex:1;min-height:0;gap:0;}
+  .builder-panel{padding:10px 16px 100px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;flex:none;max-height:38vh;}
   .dir-toggle{display:flex;gap:8px;}
   .dir-btn{flex:1;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);padding:12px;border-radius:12px;font-weight:700;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:3px;}
   .dir-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-soft-ink);}
@@ -134,15 +136,6 @@
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13.5px;z-index:30;box-shadow:var(--shadow);max-width:90vw;text-align:center;}
   .footer-links{display:flex;justify-content:center;gap:18px;padding:6px 0 2px;}
   .footer-links button{border:none;background:transparent;color:var(--ink-dim);font-size:12.5px;text-decoration:underline;}
-  .keypad{display:flex;flex-direction:column;gap:10px;margin-top:14px;}
-  .keypad-display{font-family:var(--font-mono);font-size:30px;font-weight:700;text-align:center;padding:14px;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);color:var(--ink);}
-  .keypad-display .keypad-suffix{font-size:14px;font-weight:500;color:var(--ink-dim);margin-left:6px;}
-  .keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-  .keypad-btn{font-family:var(--font-display);font-size:22px;font-weight:700;padding:16px 0;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface);color:var(--ink);}
-  .keypad-btn:active{background:var(--surface-2);}
-  .keypad-btn-sub{font-size:18px;color:var(--ink-dim);}
-  .diag-choice-btns{display:flex;flex-direction:column;gap:10px;margin-top:14px;}
-  .ortho-toggle{width:100%;text-align:center;font-family:var(--font-body);font-size:12.5px;font-weight:600;color:var(--accent-soft-ink);background:var(--accent-soft);border:1px solid transparent;border-radius:var(--radius-sm);padding:9px 10px;margin:2px 0 4px;}
   @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important;} }
 </style>
 </head>
@@ -153,7 +146,7 @@
 "use strict";
 var STORAGE_KEY = "ceilingMeasure_v2";
 var STORAGE_KEY_LEGACY = "ceilingMeasure_v1";
-var CANVAS_W = 320, CANVAS_H = 256;
+var CANVAS_W = 320, CANVAS_H = 500;
 var CANVAS_XFORM = null;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -183,15 +176,15 @@ function findApartment(obj,id){ return obj.apartments.find(function(a){return a.
 function findMeasurement(apt,id){ return apt.measurements.find(function(m){return m.id===id;}); }
 
 // ---------- geometry: distance-constraint solver (perimeter + diagonals) ----------
-// Legacy geometry engine: pure distance-constraint relaxation with a weak pull back toward
-// the as-drawn rough shape. Kept verbatim for measurements saved before per-edge 90°-lock
-// tracking existed (no orthoFlags), so old data keeps rendering exactly as it always has.
-function solveShapeLegacyRelax(roughPoints, wallLengths, diagonals){
+function solveShape(roughPoints, wallLengths, diagonals){
   var K = roughPoints.length;
   var perimeter = (wallLengths||[]).reduce(function(a,b){return a+b;},0);
   if (K < 3){
     return {vertices:[], area:0, perimeter:perimeter, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:(diagonals||[]).length};
   }
+  // The rough sketch lives on an abstract grid (single-digit units); real lengths are in
+  // centimeters. Rescale the sketch to roughly the real perimeter first, so relaxation
+  // only has to fix relative proportions/angles instead of a ~100x size jump.
   var roughPerim = 0;
   for (var ri=0; ri<K; ri++){ var rp1=roughPoints[ri], rp2=roughPoints[(ri+1)%K]; roughPerim += Math.hypot(rp2.x-rp1.x, rp2.y-rp1.y); }
   var scaleFactor = roughPerim>0.0001 ? perimeter/roughPerim : 1;
@@ -200,6 +193,11 @@ function solveShapeLegacyRelax(roughPoints, wallLengths, diagonals){
   var constraints = [];
   for (var i=0;i<K;i++){ constraints.push({a:i, b:(i+1)%K, target:wallLengths[i]}); }
   (diagonals||[]).forEach(function(d){ constraints.push({a:d.a, b:d.b, target:d.length}); });
+  // A perimeter loop alone is under-constrained for K>=4 (it can "shear" like scissors
+  // without changing any side length, and repeated relaxation can drift toward a
+  // degenerate, zero-area fold along that free direction). A weak pull back toward the
+  // as-drawn rough shape acts as bracing against that drift, while real length
+  // constraints (checked every iteration too) still dominate the final result.
   var ANCHOR_WEIGHT = 0.02;
   var ITER = 300;
   for (var it=0; it<ITER; it++){
@@ -227,102 +225,6 @@ function solveShapeLegacyRelax(roughPoints, wallLengths, diagonals){
   });
   var needDiagonals = Math.max(0, K-3);
   return {vertices:pos, area:area, perimeter:perimeter, valid:true, maxErr:maxErr, needDiagonals:needDiagonals, haveDiagonals:(diagonals||[]).length};
-}
-
-// Current geometry engine: every edge drawn with the 90°-lock on keeps the EXACT compass
-// direction it was drawn with (horizontal or vertical), no matter what real length the user
-// later types in — so two locked edges meeting at a corner stay exactly perpendicular. Only
-// edges the person explicitly drew as "free angle" are allowed to take on a different
-// direction, and even then only a measured diagonal (not the rough finger-drawn angle) is
-// trusted to pin down their real direction.
-function solveShape(roughPoints, wallLengths, diagonals, orthoFlags){
-  if (!orthoFlags){
-    // no per-edge lock data (older saved measurement) - fall back to the original behavior
-    return solveShapeLegacyRelax(roughPoints, wallLengths, diagonals);
-  }
-  var K = roughPoints.length;
-  var perimeter = (wallLengths||[]).reduce(function(a,b){return a+b;},0);
-  if (K < 3){
-    return {vertices:[], area:0, perimeter:perimeter, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:(diagonals||[]).length};
-  }
-  var dir = [];
-  for (var i=0;i<K;i++){
-    var p1=roughPoints[i], p2=roughPoints[(i+1)%K];
-    var dx=p2.x-p1.x, dy=p2.y-p1.y;
-    if (orthoFlags[i]){
-      // dominant-axis rounding: exact for normally-drawn locked edges (already perfectly
-      // axis-aligned by construction), and a safe fallback for the closing edge (whose rough
-      // endpoint is "close to" the start point rather than exactly on-axis with it).
-      if (Math.abs(dx) >= Math.abs(dy)) dir.push({x:(dx>=0?1:-1), y:0});
-      else dir.push({x:0, y:(dy>=0?1:-1)});
-    } else {
-      var ln = Math.hypot(dx,dy)||0.0001;
-      dir.push({x:dx/ln, y:dy/ln});
-    }
-  }
-  var pos = [{x:0,y:0}];
-  for (var i2=0;i2<K;i2++){ var prev=pos[i2]; pos.push({x:prev.x+dir[i2].x*wallLengths[i2], y:prev.y+dir[i2].y*wallLengths[i2]}); }
-  var gap = {x:pos[K].x-pos[0].x, y:pos[K].y-pos[0].y};
-  pos = pos.slice(0,K);
-
-  var hasFree = orthoFlags.slice(0,K).some(function(f){return !f;});
-  var haveDiag = (diagonals||[]).length;
-  if (hasFree && haveDiag){
-    // Free edges plus at least one measured diagonal: refine with the same relaxation
-    // approach as before, but every locked edge is re-projected onto its fixed direction
-    // each pass, so it can never drift away from the angle it was actually drawn at.
-    var anchor = pos.map(function(p){return {x:p.x,y:p.y};});
-    var constraints = [];
-    for (var ci0=0; ci0<K; ci0++){ constraints.push({a:ci0, b:(ci0+1)%K, target:wallLengths[ci0]}); }
-    (diagonals||[]).forEach(function(d){ constraints.push({a:d.a, b:d.b, target:d.length}); });
-    var ITER = 250;
-    for (var it=0; it<ITER; it++){
-      for (var ci=0; ci<constraints.length; ci++){
-        var con = constraints[ci];
-        var ddx=pos[con.b].x-pos[con.a].x, ddy=pos[con.b].y-pos[con.a].y;
-        var dist = Math.hypot(ddx,ddy) || 0.0001;
-        var diff = (dist-con.target)/dist;
-        var cx = ddx*diff*0.5, cy = ddy*diff*0.5;
-        if (con.a!==0){ pos[con.a].x += cx; pos[con.a].y += cy; }
-        if (con.b!==0){ pos[con.b].x -= cx; pos[con.b].y -= cy; }
-      }
-      for (var ei=0; ei<K; ei++){
-        if (!orthoFlags[ei]) continue;
-        var aI=ei, bI=(ei+1)%K;
-        var vx=pos[bI].x-pos[aI].x, vy=pos[bI].y-pos[aI].y;
-        var L = Math.hypot(vx,vy) || 0.0001;
-        var tx = dir[ei].x*L, ty = dir[ei].y*L;
-        var cdx = (tx-vx)*0.5, cdy = (ty-vy)*0.5;
-        if (aI!==0){ pos[aI].x -= cdx; pos[aI].y -= cdy; }
-        if (bI!==0){ pos[bI].x += cdx; pos[bI].y += cdy; }
-      }
-      for (var pi=1; pi<K; pi++){
-        pos[pi].x += (anchor[pi].x-pos[pi].x)*0.004;
-        pos[pi].y += (anchor[pi].y-pos[pi].y)*0.004;
-      }
-    }
-  } else {
-    // No free edges (or free edges with no diagonal measured yet): spread out any small
-    // closing mismatch evenly. For a length-consistent, fully right-angled shape this gap
-    // is exactly zero, so nothing moves and every locked angle stays exact.
-    for (var pj=1; pj<K; pj++){
-      pos[pj].x -= gap.x*(pj/K);
-      pos[pj].y -= gap.y*(pj/K);
-    }
-  }
-  var area2=0;
-  for (var j=0;j<K;j++){ var pp1=pos[j], pp2=pos[(j+1)%K]; area2 += pp1.x*pp2.y-pp2.x*pp1.y; }
-  var area = Math.abs(area2)/2;
-  var maxErr = 0;
-  var lenConstraints = [];
-  for (var lc=0; lc<K; lc++){ lenConstraints.push({a:lc, b:(lc+1)%K, target:wallLengths[lc]}); }
-  (diagonals||[]).forEach(function(d){ lenConstraints.push({a:d.a, b:d.b, target:d.length}); });
-  lenConstraints.forEach(function(con){
-    var d = Math.hypot(pos[con.b].x-pos[con.a].x, pos[con.b].y-pos[con.a].y);
-    if (con.target>0){ maxErr = Math.max(maxErr, Math.abs(d-con.target)/con.target); }
-  });
-  var needDiagonals = orthoFlags.slice(0,K).filter(function(f){return !f;}).length;
-  return {vertices:pos, area:area, perimeter:perimeter, valid:true, maxErr:maxErr, needDiagonals:needDiagonals, haveDiagonals:haveDiag};
 }
 
 // Legacy (v1) turn-angle turtle geometry, kept so measurements saved by the first version of the app still open correctly.
@@ -354,7 +256,7 @@ function computeGeomLegacy(walls, turns){
 function computeGeom(m){
   if (!m) return {vertices:[], area:0, perimeter:0, valid:false, maxErr:0, needDiagonals:0, haveDiagonals:0};
   if (m.turns) return computeGeomLegacy(m.walls, m.turns);
-  return solveShape(m.points||[], m.wallLengths||[], m.diagonals||[], m.orthoFlags);
+  return solveShape(m.points||[], m.wallLengths||[], m.diagonals||[]);
 }
 function wallLenArrayOf(m){ return m.turns ? m.walls : m.wallLengths; }
 function diagonalsOf(m){ return m.turns ? [] : (m.diagonals||[]); }
@@ -433,8 +335,7 @@ function svgCssVars(){
     labelBg: cs.getPropertyValue("--surface").trim()||"#fff",
     labelColor: cs.getPropertyValue("--ink").trim()||"#1B2430",
     lineColor: cs.getPropertyValue("--line").trim()||"#CBD4DC",
-    dotColor: cs.getPropertyValue("--accent").trim()||"#D9730D",
-    warnColor: cs.getPropertyValue("--warn").trim()||"#B23B2E"
+    dotColor: cs.getPropertyValue("--accent").trim()||"#D9730D"
   };
 }
 
@@ -632,70 +533,37 @@ function renderApartmentScreen(){
 // ---------- builder: draw-on-grid canvas ----------
 function newBuilder(objId, aptId, editingMeas){
   if (editingMeas){
-    var pts, wl, diags, oflags;
+    var pts, wl, diags;
     if (editingMeas.turns){
       var lg = computeGeomLegacy(editingMeas.walls, editingMeas.turns);
       pts = lg.vertices.map(function(p){ return {x:p.x/50, y:p.y/50}; });
       wl = editingMeas.walls.slice();
       diags = [];
-      oflags = undefined;
     } else {
       pts = (editingMeas.points||[]).map(function(p){ return {x:p.x,y:p.y}; });
       wl = (editingMeas.wallLengths||[]).slice();
       diags = (editingMeas.diagonals||[]).map(function(d){ return {a:d.a,b:d.b,length:d.length}; });
-      // older measurements saved before 90°-lock tracking existed have no orthoFlags; leave
-      // undefined so solveShape falls back to the original free-form relaxation for them,
-      // rather than assuming (possibly wrongly) that every edge was a right angle.
-      oflags = editingMeas.orthoFlags ? editingMeas.orthoFlags.slice() : undefined;
     }
     return {objId:objId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
-      points:pts, wallLengths:wl, diagonals:diags, orthoFlags:oflags, closed:true, resultMode:true, mode:"diagonal",
-      snapOrtho:true, measure:null, diagStage:null, editSeg:null, drag:null};
+      points:pts, wallLengths:wl, diagonals:diags, closed:true, resultMode:true, mode:"diagonal",
+      pending:null, editSeg:null, drag:null};
   }
-  return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[], orthoFlags:[],
-    closed:false, resultMode:false, mode:"wall", snapOrtho:true, measure:null, diagStage:null, editSeg:null, drag:null};
-}
-// forces the dropped point onto a horizontal or vertical line through the anchor
-// (whichever axis the finger moved further along), so hand-drawn walls come out as clean right angles
-function snapAxis(anchor, raw){
-  var dx = raw.x-anchor.x, dy = raw.y-anchor.y;
-  if (Math.abs(dx) >= Math.abs(dy)) return {x:raw.x, y:anchor.y};
-  return {x:anchor.x, y:raw.y};
-}
-
-// rough-sketch distance -> a plausible starting cm guess (overwritten once the user types a real value)
-function guessLen(p1,p2){ return Math.max(30, Math.round(Math.hypot(p2.x-p1.x,p2.y-p1.y)*100/10)*10); }
-function estimateDiagonalGuess(b, aIdx, bIdx){
-  var g = solveShape(b.points, b.wallLengths, b.diagonals, b.orthoFlags);
-  if (g.vertices && g.vertices[aIdx] && g.vertices[bIdx]){
-    return Math.max(1, Math.round(Math.hypot(g.vertices[bIdx].x-g.vertices[aIdx].x, g.vertices[bIdx].y-g.vertices[aIdx].y)));
-  }
-  return guessLen(b.points[aIdx], b.points[bIdx]);
-}
-function startMeasureQueue(b, kind, fromIdx, toIdx){
-  if (fromIdx>toIdx){ finishMeasureQueue(b, kind); return; }
-  b.measure = {kind:kind, idx:fromIdx, endIdx:toIdx, value:"", fresh:true};
-}
-function finishMeasureQueue(b, kind){
-  b.measure = null;
-  if (kind==="wall"){
-    // Every corner was locked to 90° while drawing (no "free angle" wall) - the shape is
-    // already fully and exactly determined, so there's nothing for a diagonal to fix.
-    var hasFreeEdge = (b.orthoFlags||[]).some(function(f){ return !f; });
-    if (hasFreeEdge) b.diagStage = "choice";
-    else { b.resultMode = true; b.mode = "wall"; }
-  }
-  else { b.resultMode = true; b.mode = "wall"; }
+  return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
+    closed:false, resultMode:false, mode:"wall", pending:null, editSeg:null, drag:null};
 }
 
 function computeFitBounds(pts){
-  if (!pts.length) return {minX:-3,maxX:3,minY:-2.5,maxY:2.5};
+  // Fixed grid — no auto-centering. The grid stays put while the user draws.
+  // Only expand if points go beyond the default visible area.
+  var defMinX=-1, defMaxX=11, defMinY=-1, defMaxY=17;
+  if (!pts.length) return {minX:defMinX,maxX:defMaxX,minY:defMinY,maxY:defMaxY};
   var xs=pts.map(function(p){return p.x;}), ys=pts.map(function(p){return p.y;});
-  var minX=Math.min.apply(null,xs)-1.3, maxX=Math.max.apply(null,xs)+1.3;
-  var minY=Math.min.apply(null,ys)-1.3, maxY=Math.max.apply(null,ys)+1.3;
-  if (maxX-minX < 5){ var cx=(minX+maxX)/2; minX=cx-2.5; maxX=cx+2.5; }
-  if (maxY-minY < 4){ var cy=(minY+maxY)/2; minY=cy-2; maxY=cy+2; }
-  return {minX:minX,maxX:maxX,minY:minY,maxY:maxY};
+  return {
+    minX: Math.min(defMinX, Math.min.apply(null,xs)-1.5),
+    maxX: Math.max(defMaxX, Math.max.apply(null,xs)+1.5),
+    minY: Math.min(defMinY, Math.min.apply(null,ys)-1.5),
+    maxY: Math.max(defMaxY, Math.max.apply(null,ys)+1.5)
+  };
 }
 
 function buildBuilderCanvasSvg(b){
@@ -730,7 +598,7 @@ function buildBuilderCanvasSvg(b){
   }
 
   var wallLabels = "";
-  for (var i=0; b.closed && i<b.wallLengths.length; i++){
+  for (var i=0;i<b.wallLengths.length;i++){
     var pa=b.points[i], pb=b.points[(i+1)%b.points.length];
     if (!pa||!pb) continue;
     var spa=toSvg(pa), spb=toSvg(pb);
@@ -761,13 +629,11 @@ function buildBuilderCanvasSvg(b){
   var dragEl = "";
   if (b.drag){
     if (b.drag.mode==="wall-first"){
-      var previewEnd0 = b.snapOrtho ? snapAxis(b.drag.startRaw, b.drag.curRaw) : b.drag.curRaw;
-      var s0=toSvg(b.drag.startRaw), s1=toSvg(previewEnd0);
+      var s0=toSvg(b.drag.startRaw), s1=toSvg(b.drag.curRaw);
       dragEl = '<line x1="'+s0.x.toFixed(1)+'" y1="'+s0.y.toFixed(1)+'" x2="'+s1.x.toFixed(1)+'" y2="'+s1.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
     } else if (b.drag.mode==="wall-next"){
       var last=b.points[b.points.length-1];
-      var previewEnd1 = b.snapOrtho ? snapAxis(last, b.drag.curRaw) : b.drag.curRaw;
-      var s2=toSvg(last), s3=toSvg(previewEnd1);
+      var s2=toSvg(last), s3=toSvg(b.drag.curRaw);
       dragEl = '<line x1="'+s2.x.toFixed(1)+'" y1="'+s2.y.toFixed(1)+'" x2="'+s3.x.toFixed(1)+'" y2="'+s3.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
     } else if (b.drag.mode==="diagonal"){
       var s4=toSvg(b.points[b.drag.aIdx]), s5=toSvg(b.drag.curRaw);
@@ -808,104 +674,22 @@ function renderSegList(b){
   return '<div class="wall-log">'+rows+'</div>';
 }
 
-// ---------- live length-entry keypad screen (walls, then diagonals) ----------
-function buildMeasureCanvasSvg(b){
-  var g = solveShape(b.points, b.wallLengths, b.diagonals, b.orthoFlags);
-  var vertices = g.vertices;
-  var W=CANVAS_W, H=CANVAS_H, pad=32;
-  if (!vertices.length){ return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"></svg>'; }
-  var xs=vertices.map(function(p){return p.x;}), ys=vertices.map(function(p){return p.y;});
-  var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs), minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
-  var w=Math.max(maxX-minX,1), h=Math.max(maxY-minY,1);
-  var scale = Math.min((W-pad*2)/w, (H-pad*2)/h);
-  function toSvg(p){ return {x:pad+(p.x-minX)*scale, y:H-pad-(p.y-minY)*scale}; }
-  var v = svgCssVars();
-  var K = vertices.length;
-  var mm = b.measure;
-  var edgesHtml = "";
-  for (var i=0;i<K;i++){
-    var pa=vertices[i], pb=vertices[(i+1)%K];
-    var sp=toSvg(pa), sq=toSvg(pb);
-    var status = (mm && mm.kind==="wall") ? (i<mm.idx?"done":(i===mm.idx?"cur":"todo")) : "done";
-    var col = status==="cur" ? v.warnColor : (status==="todo" ? v.lineColor : v.strokeColor);
-    var wd = status==="cur" ? 3.5 : 2.5;
-    edgesHtml += '<line x1="'+sp.x.toFixed(1)+'" y1="'+sp.y.toFixed(1)+'" x2="'+sq.x.toFixed(1)+'" y2="'+sq.y.toFixed(1)+'" stroke="'+col+'" stroke-width="'+wd+'" stroke-linecap="round"/>';
-    if (status!=="todo"){
-      var mx=(sp.x+sq.x)/2, my=(sp.y+sq.y)/2;
-      var t = status==="cur" ? (mm.value || "?") : String(Math.round(b.wallLengths[i]));
-      var boxW = Math.max(26, 10+String(t).length*8);
-      edgesHtml += '<rect x="'+(mx-boxW/2).toFixed(1)+'" y="'+(my-10).toFixed(1)+'" width="'+boxW.toFixed(1)+'" height="20" rx="4" fill="'+v.labelBg+'" opacity="0.96"/>'+
-        '<text x="'+mx.toFixed(1)+'" y="'+(my+4.5).toFixed(1)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="700" fill="'+col+'">'+t+'</text>';
-    }
+function pendingLabel(b){
+  var p = b.pending;
+  if (p.type==="wall"){
+    if (p.closing) return "Стена "+pointLabel(b.points.length-1)+"–"+pointLabel(0)+" (замыкает контур)";
+    if (p.newPoints.length===2) return "Стена "+pointLabel(0)+"–"+pointLabel(1);
+    return "Стена "+pointLabel(b.points.length-1)+"–"+pointLabel(b.points.length);
   }
-  var diagHtml = "";
-  (b.diagonals||[]).forEach(function(d,i){
-    var pa=vertices[d.a], pb=vertices[d.b];
-    if (!pa||!pb) return;
-    var sp=toSvg(pa), sq=toSvg(pb);
-    var status = (mm && mm.kind==="diag") ? (i<mm.idx?"done":(i===mm.idx?"cur":"todo")) : "done";
-    var col = status==="cur" ? v.warnColor : (status==="todo" ? v.lineColor : v.strokeColor);
-    var wd = status==="cur" ? 3 : 1.6;
-    diagHtml += '<line x1="'+sp.x.toFixed(1)+'" y1="'+sp.y.toFixed(1)+'" x2="'+sq.x.toFixed(1)+'" y2="'+sq.y.toFixed(1)+'" stroke="'+col+'" stroke-width="'+wd+'" stroke-dasharray="4 4" opacity="0.85"/>';
-    if (status!=="todo"){
-      var dmx=(sp.x+sq.x)/2, dmy=(sp.y+sq.y)/2;
-      var dt = status==="cur" ? (mm.value||"?") : String(Math.round(d.length));
-      diagHtml += '<text x="'+dmx.toFixed(1)+'" y="'+(dmy-6).toFixed(1)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="'+col+'">'+dt+'</text>';
-    }
-  });
-  var fillPath = vertices.map(function(p,i){ var s=toSvg(p); return (i===0?"M":"L")+s.x.toFixed(1)+" "+s.y.toFixed(1); }).join(" ")+" Z";
-  var dotsHtml = vertices.map(function(p,i){ var s=toSvg(p); return '<circle cx="'+s.x.toFixed(1)+'" cy="'+s.y.toFixed(1)+'" r="4" fill="'+v.dotColor+'" stroke="'+v.labelBg+'" stroke-width="1.5"/>'+
-    '<text x="'+s.x.toFixed(1)+'" y="'+(s.y-11).toFixed(1)+'" text-anchor="middle" font-family="Archivo, sans-serif" font-size="11" font-weight="700" fill="'+v.strokeColor+'">'+pointLabel(i)+'</text>'; }).join("");
-  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">'+
-    '<path d="'+fillPath+'" fill="'+v.fillColor+'" stroke="none"/>'+diagHtml+edgesHtml+dotsHtml+'</svg>';
-}
-function renderMeasureScreen(b){
-  var mm = b.measure;
-  var label = mm.kind==="wall"
-    ? ("Стена "+pointLabel(mm.idx)+"–"+pointLabel((mm.idx+1)%b.points.length))
-    : ("Диагональ "+pointLabel(b.diagonals[mm.idx].a)+"–"+pointLabel(b.diagonals[mm.idx].b));
-  var progress = (mm.idx+1)+" из "+(mm.endIdx+1);
-  var display = mm.value || "0";
-  var digits = [1,2,3,4,5,6,7,8,9].map(function(n){ return '<button class="keypad-btn" data-act="kpDigit" data-d="'+n+'">'+n+'</button>'; }).join("");
-  var kp = '<div class="keypad">'+
-    '<div class="keypad-display">'+escapeHtml(display)+'<span class="keypad-suffix">см</span></div>'+
-    '<div class="keypad-grid">'+digits+
-      '<button class="keypad-btn keypad-btn-sub" data-act="kpDot">.</button>'+
-      '<button class="keypad-btn" data-act="kpDigit" data-d="0">0</button>'+
-      '<button class="keypad-btn keypad-btn-sub" data-act="kpBack">⌫</button>'+
-    '</div>'+
-    '<button class="btn btn-primary btn-block" data-act="kpConfirm">'+(mm.idx>=mm.endIdx?"Готово":"Далее →")+'</button>'+
-    '</div>';
-  return topbar({back:"cancelBuilderConfirm", eyebrow:"Замер · "+progress, title:label})+
-    '<div class="screen">'+
-    '<div class="builder-canvas" style="pointer-events:none;">'+buildMeasureCanvasSvg(b)+'</div>'+
-    kp+
-    '</div>';
-}
-function renderDiagChoiceScreen(b){
-  var g = solveShape(b.points, b.wallLengths, [], b.orthoFlags);
-  var canvasHtml = polygonSvg(g.vertices, Object.assign({width:CANVAS_W,height:CANVAS_H,pad:26,walls:b.wallLengths}, svgCssVars()));
-  var canAuto = b.points.length>=4;
-  return topbar({back:"cancelBuilderConfirm", eyebrow:"Замер", title:"Диагонали"})+
-    '<div class="screen">'+
-    '<div class="builder-canvas">'+canvasHtml+'</div>'+
-    '<div class="field-label">Есть непрямые углы? Уточним форму диагоналями:</div>'+
-    '<div class="diag-choice-btns">'+
-    (canAuto ? '<button class="btn btn-secondary btn-block" data-act="diagAuto">Автоматически</button>' : "")+
-    '<button class="btn btn-secondary btn-block" data-act="diagManual">Вручную — начертить самому</button>'+
-    '<button class="btn btn-ghost btn-block" data-act="diagSkip">Пропустить — все углы прямые</button>'+
-    '</div></div>';
+  return "Диагональ "+pointLabel(p.aIdx)+"–"+pointLabel(p.bIdx);
 }
 
 function renderBuilderScreen(){
   var b = NAV.builder;
-  if (b.measure) return renderMeasureScreen(b);
-  if (b.diagStage==="choice") return renderDiagChoiceScreen(b);
-
   var canvasHtml, body;
 
-  if (b.resultMode && b.closed){
-    var g = solveShape(b.points, b.wallLengths, b.diagonals, b.orthoFlags);
+  if (b.resultMode && b.closed && !b.pending){
+    var g = solveShape(b.points, b.wallLengths, b.diagonals);
     canvasHtml = polygonSvg(g.vertices, Object.assign({width:CANVAS_W,height:CANVAS_H,pad:26,walls:b.wallLengths,diagonals:b.diagonals}, svgCssVars()));
     var need = Math.max(0, g.needDiagonals-g.haveDiagonals);
     var banner;
@@ -925,25 +709,31 @@ function renderBuilderScreen(){
       '<button class="btn btn-primary btn-block" data-act="saveMeasurement">Сохранить</button>';
   } else {
     canvasHtml = buildBuilderCanvasSvg(b);
-    var canClose = b.points.length>=3 && !b.closed;
-    var modeToggle = '<div class="dir-toggle">'+
-      '<button class="dir-btn '+(b.mode==="wall"?"active":"")+'" data-act="setMode" data-mode="wall" '+(b.closed?"disabled":"")+'>✏️ Стена</button>'+
-      '<button class="dir-btn '+(b.mode==="diagonal"?"active":"")+'" data-act="setMode" data-mode="diagonal" '+(b.points.length<3?"disabled":"")+'>📏 Диагональ</button>'+
-      '</div>';
-    var hint = '<div class="canvas-hint">'+(b.mode==="wall" ? "Проведите пальцем по клеточкам — начертите весь контур, цифры впишем потом" : "Проведите линию между двумя уже поставленными точками")+'</div>';
-    var orthoToggle = (b.mode==="wall" && !b.closed) ? '<button class="ortho-toggle" data-act="toggleOrtho">'+(b.snapOrtho ? "⊥ Угол 90° — нажми для свободного угла" : "⟋ Свободный угол — нажми для 90°")+'</button>' : "";
-    body = modeToggle + hint + orthoToggle + (b.closed ? renderSegList(b) : "") +
-      (canClose ? '<button class="btn btn-secondary btn-block" data-act="closeToStart">Замкнуть контур на '+pointLabel(0)+'</button>' : "")+
-      '<div class="btn-row">'+
-      (b.points.length>0 ? '<button class="btn btn-secondary" data-act="undoBuilder">Отменить последний шаг</button>' : '<button class="btn btn-ghost" data-act="cancelBuilder">Отмена</button>')+
-      '</div>'+
-      (b.closed ? '<button class="btn btn-primary btn-block" data-act="showResult">Готово — посчитать площадь →</button>' : "");
+    if (b.pending){
+      body = renderSegList(b) +
+        '<div class="field"><div class="field-label">'+pendingLabel(b)+'</div>'+
+        '<div class="input-suffix-wrap"><input class="input input-num" id="pendingLenInput" type="number" inputmode="decimal" placeholder="0" autofocus><span class="input-suffix">см</span></div></div>'+
+        '<div class="btn-row"><button class="btn btn-ghost" data-act="cancelPending">Отмена</button><button class="btn btn-primary" data-act="confirmPending">Готово</button></div>';
+    } else {
+      var canClose = b.points.length>=3 && !b.closed;
+      var modeToggle = '<div class="dir-toggle">'+
+        '<button class="dir-btn '+(b.mode==="wall"?"active":"")+'" data-act="setMode" data-mode="wall" '+(b.closed?"disabled":"")+'>✏️ Стена</button>'+
+        '<button class="dir-btn '+(b.mode==="diagonal"?"active":"")+'" data-act="setMode" data-mode="diagonal" '+(b.points.length<3?"disabled":"")+'>📏 Диагональ</button>'+
+        '</div>';
+      var hint = '<div class="canvas-hint">'+(b.mode==="wall" ? "Проведите пальцем по клеточкам — от последней точки до следующего угла" : "Проведите линию между двумя уже поставленными точками")+'</div>';
+      body = modeToggle + hint + renderSegList(b) +
+        (canClose ? '<button class="btn btn-secondary btn-block" data-act="closeToStart">Замкнуть контур на '+pointLabel(0)+'</button>' : "")+
+        '<div class="btn-row">'+
+        (b.points.length>0 ? '<button class="btn btn-secondary" data-act="undoBuilder">Отменить последний шаг</button>' : '<button class="btn btn-ghost" data-act="cancelBuilder">Отмена</button>')+
+        '</div>'+
+        (b.closed ? '<button class="btn btn-primary btn-block" data-act="showResult">Готово — посчитать площадь →</button>' : "");
+    }
   }
 
   return topbar({back:"cancelBuilderConfirm", eyebrow:"Замер", title: b.editingId ? "Редактирование" : "Новый замер"})+
-    '<div class="screen">'+
+    '<div class="screen-builder">'+
     '<div class="builder-canvas" id="builderSvgWrap">'+canvasHtml+'</div>'+
-    body+
+    '<div class="builder-panel">'+body+'</div>'+
     '</div>';
 }
 
@@ -993,7 +783,7 @@ function nearestExistingPoint(p, points, maxDist){
 }
 function onCanvasPointerDown(e){
   var b = NAV.builder;
-  if (!b || b.resultMode || b.measure || b.diagStage) return;
+  if (!b || b.resultMode || b.pending) return;
   e.preventDefault();
   var raw = roughFromClient(e.clientX, e.clientY);
   var frozenBounds = computeFitBounds(b.points);
@@ -1024,27 +814,18 @@ function onCanvasPointerUp(e){
   var raw = roughFromClient(e.clientX, e.clientY);
   var drag = b.drag; b.drag = null;
   if (drag.mode==="wall-first"){
-    var rawEnd = b.snapOrtho ? snapAxis(drag.startRaw, raw) : raw;
-    var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(rawEnd);
+    var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(raw);
     if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.6){ render(); return; }
-    b.points.push(p0); b.points.push(p1);
-    b.wallLengths.push(guessLen(p0,p1));
-    b.orthoFlags.push(b.snapOrtho);
+    b.pending = {type:"wall", newPoints:[p0,p1], closing:false};
   } else if (drag.mode==="wall-next"){
     var last = b.points[b.points.length-1];
-    var rawTarget = b.snapOrtho ? snapAxis(last, raw) : raw;
-    var pnew = snapToGrid(rawTarget);
+    var pnew = snapToGrid(raw);
     if (b.points.length>=3 && Math.hypot(pnew.x-b.points[0].x, pnew.y-b.points[0].y) < 0.75){
-      b.wallLengths.push(guessLen(last, b.points[0]));
-      b.orthoFlags.push(b.snapOrtho);
-      b.closed = true;
-      startMeasureQueue(b, "wall", 0, b.wallLengths.length-1);
+      b.pending = {type:"wall", newPoints:[], closing:true};
     } else if (Math.hypot(pnew.x-last.x, pnew.y-last.y) < 0.6){
       render(); return;
     } else {
-      b.points.push(pnew);
-      b.wallLengths.push(guessLen(last,pnew));
-      b.orthoFlags.push(b.snapOrtho);
+      b.pending = {type:"wall", newPoints:[pnew], closing:false};
     }
   } else if (drag.mode==="diagonal"){
     var bIdx = nearestExistingPoint(raw, b.points, 1.15);
@@ -1053,9 +834,7 @@ function onCanvasPointerUp(e){
     var K = b.points.length;
     var isEdge = (Math.abs(drag.aIdx-bIdx)===1) || (drag.aIdx===0&&bIdx===K-1) || (bIdx===0&&drag.aIdx===K-1);
     if (dup || isEdge){ toast("Такая линия уже есть"); render(); return; }
-    var guess = estimateDiagonalGuess(b, drag.aIdx, bIdx);
-    b.diagonals.push({a:drag.aIdx, b:bIdx, length:guess});
-    startMeasureQueue(b, "diag", b.diagonals.length-1, b.diagonals.length-1);
+    b.pending = {type:"diagonal", aIdx:drag.aIdx, bIdx:bIdx};
   }
   render();
 }
@@ -1064,6 +843,8 @@ function onCanvasPointerUp(e){
 function wireLiveInputs(){
   var canvasWrap = document.getElementById("builderSvgWrap");
   if (canvasWrap){ canvasWrap.addEventListener("pointerdown", onCanvasPointerDown); }
+  var pendingInput = document.getElementById("pendingLenInput");
+  if (pendingInput){ pendingInput.focus(); }
   var renameInput = document.getElementById("renameInput");
   if (renameInput){ renameInput.focus(); renameInput.select(); }
   var editSegInput = document.getElementById("editSegInput");
@@ -1162,7 +943,7 @@ function actions(act, ds){
     render(); return;
   }
   if (act==="cancelBuilderConfirm"){
-    if (b.points.length===0){ NAV = {view:"apartment", objectId:b.objId, apartmentId:b.aptId}; render(); return; }
+    if (b.points.length===0 && !b.pending){ NAV = {view:"apartment", objectId:b.objId, apartmentId:b.aptId}; render(); return; }
     NAV.modal = {type:"cancelBuilderConfirm"}; render(); return;
   }
   if (act==="confirmCancelBuilder"){
@@ -1175,63 +956,26 @@ function actions(act, ds){
     if (ds.mode==="wall" && b.closed) return;
     b.mode = ds.mode; render(); return;
   }
-  if (act==="toggleOrtho"){ b.snapOrtho = !b.snapOrtho; render(); return; }
   if (act==="closeToStart"){
     if (b.points.length<3) return;
-    var lastPt = b.points[b.points.length-1];
-    b.wallLengths.push(guessLen(lastPt, b.points[0]));
-    b.orthoFlags.push(b.snapOrtho);
-    b.closed = true;
-    startMeasureQueue(b, "wall", 0, b.wallLengths.length-1);
+    b.pending = {type:"wall", newPoints:[], closing:true};
     render(); return;
   }
-  if (act==="kpDigit"){
-    if (!b.measure) return;
-    if (b.measure.fresh){ b.measure.value = ""; b.measure.fresh = false; }
-    if (b.measure.value.length<6) b.measure.value += ds.d;
-    render(); return;
-  }
-  if (act==="kpDot"){
-    if (!b.measure) return;
-    if (b.measure.fresh){ b.measure.value = ""; b.measure.fresh = false; }
-    if (b.measure.value.indexOf(".")<0){ b.measure.value += (b.measure.value===""?"0.":"."); }
-    render(); return;
-  }
-  if (act==="kpBack"){
-    if (!b.measure) return;
-    if (b.measure.fresh){ b.measure.value = ""; b.measure.fresh = false; }
-    else { b.measure.value = b.measure.value.slice(0,-1); }
-    render(); return;
-  }
-  if (act==="kpConfirm"){
-    if (!b.measure) return;
-    var mm = b.measure;
-    var val = parseFloat(mm.value);
-    if (mm.value && !isNaN(val) && val>0){
-      if (mm.kind==="wall") b.wallLengths[mm.idx] = val;
-      else b.diagonals[mm.idx].length = val;
+  if (act==="confirmPending"){
+    var lenv = readNum("pendingLenInput", null);
+    if (!lenv || lenv<=0){ toast("Введите длину в см"); return; }
+    var p = b.pending;
+    if (p.type==="wall"){
+      if (p.closing){ b.wallLengths.push(lenv); b.closed = true; b.resultMode = true; }
+      else { p.newPoints.forEach(function(pt){ b.points.push(pt); }); b.wallLengths.push(lenv); }
+    } else if (p.type==="diagonal"){
+      b.diagonals.push({a:p.aIdx, b:p.bIdx, length:lenv});
+      if (b.closed) b.resultMode = true;
     }
-    if (mm.idx>=mm.endIdx){ finishMeasureQueue(b, mm.kind); }
-    else { mm.idx += 1; mm.value = ""; mm.fresh = true; }
+    b.pending = null;
     render(); return;
   }
-  if (act==="diagSkip"){ b.diagStage = null; b.resultMode = true; render(); return; }
-  if (act==="diagManual"){ b.diagStage = null; b.mode = "diagonal"; render(); return; }
-  if (act==="diagAuto"){
-    var K2 = b.points.length;
-    if (K2>=4){
-      var g0 = solveShape(b.points, b.wallLengths, [], b.orthoFlags);
-      for (var fi=2; fi<=K2-2; fi++){
-        var fguess = Math.round(Math.hypot(g0.vertices[fi].x-g0.vertices[0].x, g0.vertices[fi].y-g0.vertices[0].y));
-        b.diagonals.push({a:0, b:fi, length:Math.max(1,fguess)});
-      }
-      b.diagStage = null;
-      startMeasureQueue(b, "diag", 0, b.diagonals.length-1);
-    } else {
-      b.diagStage = null; b.resultMode = true;
-    }
-    render(); return;
-  }
+  if (act==="cancelPending"){ b.pending = null; render(); return; }
   if (act==="showResult"){ b.resultMode = true; render(); return; }
   if (act==="addDiagonalMore"){ b.resultMode = false; b.mode = "diagonal"; render(); return; }
   if (act==="reopenBuilder"){
@@ -1240,12 +984,13 @@ function actions(act, ds){
     b.resultMode = false; render(); return;
   }
   if (act==="undoBuilder"){
+    if (b.pending){ b.pending = null; render(); return; }
     if (b.closed){
-      b.wallLengths.pop(); b.orthoFlags.pop(); b.closed = false; b.resultMode = false; b.mode = "wall";
+      b.wallLengths.pop(); b.closed = false; b.resultMode = false; b.mode = "wall";
       render(); return;
     }
     if (b.points.length>0){
-      b.wallLengths.pop(); b.orthoFlags.pop();
+      b.wallLengths.pop();
       if (b.points.length<=2){ b.points = []; } else { b.points.pop(); }
     }
     render(); return;
@@ -1269,14 +1014,9 @@ function actions(act, ds){
   if (act==="saveMeasurement"){
     var nameVal = document.getElementById("measNameInput").value.trim() || "Замер";
     var obj12 = findObject(b.objId); var apt12 = findApartment(obj12, b.aptId);
-    // Only keep orthoFlags if every wall actually has one recorded (the normal case for
-    // anything drawn since the 90°-lock feature shipped) - a partial/missing set is worse
-    // than none, since solveShape would otherwise misread untracked edges as "free angle".
-    var oflagsOk = b.orthoFlags && b.orthoFlags.length === b.wallLengths.length;
     var newMeas = {id: b.editingId||uid(), name:nameVal, createdAt:nowIso(),
       points: b.points.map(function(p){return {x:p.x,y:p.y};}),
       wallLengths: b.wallLengths.slice(),
-      orthoFlags: oflagsOk ? b.orthoFlags.slice() : undefined,
       diagonals: b.diagonals.map(function(d){return {a:d.a,b:d.b,length:d.length};})};
     if (b.editingId){
       var idxM = apt12.measurements.findIndex(function(m){return m.id===b.editingId;});
@@ -1334,3 +1074,4 @@ render();
 </script>
 </body>
 </html>
+
