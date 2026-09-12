@@ -101,6 +101,11 @@
   .input-suffix{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--ink-dim);font-size:13px;pointer-events:none;}
 
   .builder-canvas{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;touch-action:none;flex:1;min-height:0;}
+  .canvas-stage{position:relative;flex:1;min-height:0;display:flex;}
+  .zoom-controls{position:absolute;right:10px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:4;}
+  .zoom-btn{width:38px;height:38px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font-size:20px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);}
+  .zoom-btn:active{background:var(--surface-2);}
+  .zoom-btn-reset{font-size:17px;}
   .canvas-hint{font-size:12px;color:var(--ink-dim);text-align:center;margin-top:2px;}
   .screen-builder{padding:0;display:flex;flex-direction:column;flex:1;min-height:0;gap:0;}
   .builder-panel{padding:10px 16px 100px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;flex:none;max-height:38vh;}
@@ -548,10 +553,10 @@ function newBuilder(objId, aptId, editingMeas){
     }
     return {objId:objId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
       points:pts, wallLengths:wl, diagonals:diags, closed:true, resultMode:true, mode:"diagonal",
-      pending:null, editSeg:null, drag:null};
+      pending:null, editSeg:null, drag:null, view:{zoom:1, panX:0, panY:0}};
   }
   return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
-    closed:false, resultMode:false, mode:"wall", pending:null, editSeg:null, drag:null};
+    closed:false, resultMode:false, mode:"wall", pending:null, editSeg:null, drag:null, view:{zoom:1, panX:0, panY:0}};
 }
 
 function computeFitBounds(pts){
@@ -576,7 +581,8 @@ function buildBuilderCanvasSvg(b){
   var scale = Math.min(CANVAS_W/spanX, CANVAS_H/spanY);
   var actualW = spanX*scale, actualH = spanY*scale;
   var offsetX = (CANVAS_W-actualW)/2, offsetY = (CANVAS_H-actualH)/2;
-  CANVAS_XFORM = {minX:bounds.minX, minY:bounds.minY, scale:scale, offsetX:offsetX, offsetY:offsetY, W:CANVAS_W, H:CANVAS_H};
+  var view = b.view || {zoom:1, panX:0, panY:0};
+  CANVAS_XFORM = {minX:bounds.minX, minY:bounds.minY, scale:scale, offsetX:offsetX, offsetY:offsetY, W:CANVAS_W, H:CANVAS_H, zoom:view.zoom, panX:view.panX, panY:view.panY};
   function toSvg(p){ return {x: offsetX+(p.x-bounds.minX)*scale, y: CANVAS_H-offsetY-(p.y-bounds.minY)*scale}; }
 
   var v = svgCssVars();
@@ -657,8 +663,11 @@ function buildBuilderCanvasSvg(b){
 
   var emptyHint = (!b.points.length && !b.drag) ? '<text x="'+(CANVAS_W/2)+'" y="'+(CANVAS_H/2)+'" text-anchor="middle" font-family="Public Sans, sans-serif" font-size="13" fill="'+v.labelColor+'" opacity="0.45">Проведите пальцем первую стену</text>' : "";
 
-  return '<svg id="builderSvg" viewBox="0 0 '+CANVAS_W+' '+CANVAS_H+'" width="100%" height="100%" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">'+
-    grid+pathEl+diagEls+dragEl+dots+wallLabels+emptyHint+'</svg>';
+  var gOpen = '<g transform="translate('+view.panX.toFixed(2)+' '+view.panY.toFixed(2)+') scale('+view.zoom.toFixed(4)+')">';
+  // full-area hit layer so drawing works anywhere on the canvas, not only on top of a grid line
+  var hitRect = '<rect x="0" y="0" width="'+CANVAS_W+'" height="'+CANVAS_H+'" fill="transparent" pointer-events="all"/>';
+  return '<svg id="builderSvg" viewBox="0 0 '+CANVAS_W+' '+CANVAS_H+'" width="100%" height="100%" style="overflow:hidden" xmlns="http://www.w3.org/2000/svg">'+
+    hitRect+gOpen+grid+pathEl+diagEls+dragEl+dots+wallLabels+'</g>'+emptyHint+'</svg>';
 }
 function renderCanvasOnly(){
   var wrap = document.getElementById("builderSvgWrap");
@@ -746,7 +755,14 @@ function renderBuilderScreen(){
 
   return topbar({back:"cancelBuilderConfirm", eyebrow:"Замер", title: b.editingId ? "Редактирование" : "Новый замер"})+
     '<div class="screen-builder">'+
-    '<div class="builder-canvas" id="builderSvgWrap">'+canvasHtml+'</div>'+
+    '<div class="canvas-stage">'+
+      '<div class="builder-canvas" id="builderSvgWrap">'+canvasHtml+'</div>'+
+      ((!b.resultMode) ? '<div class="zoom-controls">'+
+        '<button class="zoom-btn" data-act="zoomIn" aria-label="Приблизить">+</button>'+
+        '<button class="zoom-btn" data-act="zoomOut" aria-label="Отдалить">−</button>'+
+        '<button class="zoom-btn zoom-btn-reset" data-act="zoomReset" aria-label="Сбросить масштаб">⟲</button>'+
+        '</div>' : '')+
+    '</div>'+
     '<div class="builder-panel">'+body+'</div>'+
     '</div>';
 }
@@ -784,8 +800,12 @@ function roughFromClient(clientX, clientY){
   var rect = wrap.getBoundingClientRect();
   var px = (clientX-rect.left) * (CANVAS_XFORM.W/rect.width);
   var py = (clientY-rect.top) * (CANVAS_XFORM.H/rect.height);
-  var x = CANVAS_XFORM.minX + (px-CANVAS_XFORM.offsetX)/CANVAS_XFORM.scale;
-  var y = CANVAS_XFORM.minY + (CANVAS_XFORM.H-CANVAS_XFORM.offsetY-py)/CANVAS_XFORM.scale;
+  // undo the view (pan/zoom) group transform, then the fit transform
+  var z = CANVAS_XFORM.zoom||1;
+  var sx = (px - (CANVAS_XFORM.panX||0)) / z;
+  var sy = (py - (CANVAS_XFORM.panY||0)) / z;
+  var x = CANVAS_XFORM.minX + (sx-CANVAS_XFORM.offsetX)/CANVAS_XFORM.scale;
+  var y = CANVAS_XFORM.minY + (CANVAS_XFORM.H-CANVAS_XFORM.offsetY-sy)/CANVAS_XFORM.scale;
   return {x:x, y:y};
 }
 function snapToGrid(p){ return {x:Math.round(p.x*GRID_SUB)/GRID_SUB, y:Math.round(p.y*GRID_SUB)/GRID_SUB}; }
@@ -795,9 +815,58 @@ function nearestExistingPoint(p, points, maxDist){
   if (best>=0 && bestD<=maxDist) return best;
   return -1;
 }
+var PTRS = {};
+var PINCH = null;
+var SUPPRESS_DRAW = false;
+var DOC_PTR_LISTENING = false;
+function ptrCount(){ return Object.keys(PTRS).length; }
+function svgPxFromClient(cx, cy){
+  var wrap = document.getElementById("builderSvgWrap");
+  if (!wrap || !CANVAS_XFORM) return {x:0,y:0};
+  var r = wrap.getBoundingClientRect();
+  return {x:(cx-r.left)*(CANVAS_XFORM.W/r.width), y:(cy-r.top)*(CANVAS_XFORM.H/r.height)};
+}
+function beginPinch(){
+  var ids = Object.keys(PTRS);
+  var pa = svgPxFromClient(PTRS[ids[0]].x, PTRS[ids[0]].y);
+  var pb = svgPxFromClient(PTRS[ids[1]].x, PTRS[ids[1]].y);
+  var b = NAV.builder; var v = b.view || (b.view={zoom:1,panX:0,panY:0});
+  PINCH = {
+    startDist: Math.hypot(pa.x-pb.x, pa.y-pb.y) || 1,
+    midX:(pa.x+pb.x)/2, midY:(pa.y+pb.y)/2,
+    startZoom:v.zoom, startPanX:v.panX, startPanY:v.panY
+  };
+}
+function zoomCanvas(factor){
+  var b = NAV.builder; if (!b) return;
+  if (!b.view) b.view = {zoom:1,panX:0,panY:0};
+  var cx = CANVAS_W/2, cy = CANVAS_H/2;
+  var z0 = b.view.zoom, z1 = Math.max(0.4, Math.min(6, z0*factor));
+  b.view.panX = cx - z1*((cx-b.view.panX)/z0);
+  b.view.panY = cy - z1*((cy-b.view.panY)/z0);
+  b.view.zoom = z1;
+  renderCanvasOnly();
+}
+function zoomReset(){ var b = NAV.builder; if (!b) return; b.view = {zoom:1,panX:0,panY:0}; renderCanvasOnly(); }
 function onCanvasPointerDown(e){
   var b = NAV.builder;
-  if (!b || b.resultMode || b.pending) return;
+  if (!b || b.resultMode) return;
+  if (!b.view) b.view = {zoom:1,panX:0,panY:0};
+  PTRS[e.pointerId] = {x:e.clientX, y:e.clientY};
+  if (!DOC_PTR_LISTENING){
+    document.addEventListener("pointermove", onCanvasPointerMove);
+    document.addEventListener("pointerup", onCanvasPointerUp);
+    document.addEventListener("pointercancel", onCanvasPointerUp);
+    DOC_PTR_LISTENING = true;
+  }
+  if (ptrCount()>=2){
+    b.drag = null; SUPPRESS_DRAW = true;
+    beginPinch();
+    renderCanvasOnly();
+    e.preventDefault();
+    return;
+  }
+  if (SUPPRESS_DRAW || b.resultMode || b.pending){ e.preventDefault(); return; }
   e.preventDefault();
   var raw = roughFromClient(e.clientX, e.clientY);
   var frozenBounds = computeFitBounds(b.points);
@@ -811,21 +880,44 @@ function onCanvasPointerDown(e){
     b.drag = {mode:"diagonal", aIdx:nearIdx, curRaw:raw, bounds:frozenBounds};
   }
   renderCanvasOnly();
-  document.addEventListener("pointermove", onCanvasPointerMove);
-  document.addEventListener("pointerup", onCanvasPointerUp);
 }
 function onCanvasPointerMove(e){
-  var b = NAV.builder;
-  if (!b || !b.drag) return;
-  b.drag.curRaw = roughFromClient(e.clientX, e.clientY);
-  renderCanvasOnly();
+  var b = NAV.builder; if (!b) return;
+  if (PTRS[e.pointerId]){ PTRS[e.pointerId].x=e.clientX; PTRS[e.pointerId].y=e.clientY; }
+  if (PINCH && ptrCount()>=2){
+    var ids = Object.keys(PTRS);
+    var pa = svgPxFromClient(PTRS[ids[0]].x, PTRS[ids[0]].y);
+    var pb = svgPxFromClient(PTRS[ids[1]].x, PTRS[ids[1]].y);
+    var dist = Math.hypot(pa.x-pb.x, pa.y-pb.y) || 1;
+    var midX = (pa.x+pb.x)/2, midY = (pa.y+pb.y)/2;
+    var nz = Math.max(0.4, Math.min(6, PINCH.startZoom * (dist/PINCH.startDist)));
+    var csx = (PINCH.midX - PINCH.startPanX)/PINCH.startZoom;
+    var csy = (PINCH.midY - PINCH.startPanY)/PINCH.startZoom;
+    b.view.zoom = nz;
+    b.view.panX = midX - nz*csx;
+    b.view.panY = midY - nz*csy;
+    renderCanvasOnly();
+    return;
+  }
+  if (b.drag){
+    b.drag.curRaw = roughFromClient(e.clientX, e.clientY);
+    renderCanvasOnly();
+  }
 }
 function onCanvasPointerUp(e){
-  document.removeEventListener("pointermove", onCanvasPointerMove);
-  document.removeEventListener("pointerup", onCanvasPointerUp);
   var b = NAV.builder;
-  if (!b || !b.drag) return;
-  var raw = roughFromClient(e.clientX, e.clientY);
+  var wasDraw = b && b.drag && !PINCH;
+  var raw = wasDraw ? roughFromClient(e.clientX, e.clientY) : null;
+  delete PTRS[e.pointerId];
+  if (PINCH && ptrCount()<2){ PINCH = null; }
+  if (ptrCount()===0){
+    document.removeEventListener("pointermove", onCanvasPointerMove);
+    document.removeEventListener("pointerup", onCanvasPointerUp);
+    document.removeEventListener("pointercancel", onCanvasPointerUp);
+    DOC_PTR_LISTENING = false;
+    SUPPRESS_DRAW = false;
+  }
+  if (!wasDraw) return;
   var drag = b.drag; b.drag = null;
   if (drag.mode==="wall-first"){
     var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(raw);
@@ -966,6 +1058,9 @@ function actions(act, ds){
   if (act==="cancelBuilder"){
     NAV = {view:"apartment", objectId:b.objId, apartmentId:b.aptId}; render(); return;
   }
+  if (act==="zoomIn"){ zoomCanvas(1.25); return; }
+  if (act==="zoomOut"){ zoomCanvas(1/1.25); return; }
+  if (act==="zoomReset"){ zoomReset(); return; }
   if (act==="setMode"){
     if (ds.mode==="wall" && b.closed) return;
     b.mode = ds.mode; render(); return;
