@@ -163,13 +163,28 @@ function fmtM2(cm2){ return (cm2/10000).toFixed(2).replace(".",",")+" м²"; }
 function fmtM(cm){ return (cm/100).toFixed(2).replace(".",",")+" м"; }
 function pointLabel(i){ var s="",n=i; do{ s=String.fromCharCode(65+(n%26))+s; n=Math.floor(n/26)-1; } while(n>=0); return s; }
 
-function defaultState(){ return {objects:[]}; }
+function defaultState(){ return {houses:[]}; }
+// Structure: Дом → Этаж → Квартира → Чертёж. Old data (Объект → Квартира → Замер)
+// is migrated: each object becomes a house with one floor "Этаж 1".
+function migrate(s){
+  if (s && Array.isArray(s.houses)) return s;
+  if (s && Array.isArray(s.objects)){
+    return {houses: s.objects.map(function(o){
+      return {id:o.id, name:o.name, createdAt:o.createdAt||nowIso(),
+        floors:[{id:uid(), name:"Этаж 1", createdAt:o.createdAt||nowIso(),
+          apartments:(o.apartments||[]).map(function(a){
+            return {id:a.id, name:a.name, createdAt:a.createdAt||nowIso(), drawings:(a.measurements||[])};
+          })}]};
+    })};
+  }
+  return null;
+}
 function loadState(){
   try{
     var raw = localStorage.getItem(STORAGE_KEY);
-    if (raw){ var s = JSON.parse(raw); if (s && Array.isArray(s.objects)) return s; }
+    if (raw){ var m = migrate(JSON.parse(raw)); if (m) return m; }
     var legacyRaw = localStorage.getItem(STORAGE_KEY_LEGACY);
-    if (legacyRaw){ var ls = JSON.parse(legacyRaw); if (ls && Array.isArray(ls.objects)) return ls; }
+    if (legacyRaw){ var lm = migrate(JSON.parse(legacyRaw)); if (lm) return lm; }
     return defaultState();
   } catch(e){ return defaultState(); }
 }
@@ -178,9 +193,10 @@ function persist(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE)
 var STATE = loadState();
 var NAV = {view:"home"};
 
-function findObject(id){ return STATE.objects.find(function(o){return o.id===id;}); }
-function findApartment(obj,id){ return obj.apartments.find(function(a){return a.id===id;}); }
-function findMeasurement(apt,id){ return apt.measurements.find(function(m){return m.id===id;}); }
+function findHouse(id){ return STATE.houses.find(function(h){return h.id===id;}); }
+function findFloor(h,id){ return h && h.floors.find(function(f){return f.id===id;}); }
+function findApt(f,id){ return f && f.apartments.find(function(a){return a.id===id;}); }
+function findDrawing(a,id){ return a && a.drawings.find(function(m){return m.id===id;}); }
 
 // ---------- geometry: distance-constraint solver (perimeter + diagonals) ----------
 function solveShape(roughPoints, wallLengths, diagonals){
@@ -270,13 +286,18 @@ function diagonalsOf(m){ return m.turns ? [] : (m.diagonals||[]); }
 
 function aptTotals(apt){
   var area=0, per=0;
-  apt.measurements.forEach(function(m){ var g=computeGeom(m); area+=g.area; per+=g.perimeter; });
-  return {area:area, perimeter:per, count:apt.measurements.length};
+  (apt.drawings||[]).forEach(function(m){ var g=computeGeom(m); area+=g.area; per+=g.perimeter; });
+  return {area:area, perimeter:per, count:(apt.drawings||[]).length};
 }
-function objTotals(obj){
+function floorTotals(floor){
   var area=0, per=0, count=0;
-  obj.apartments.forEach(function(a){ var t=aptTotals(a); area+=t.area; per+=t.perimeter; count+=t.count; });
-  return {area:area, perimeter:per, count:count, apts:obj.apartments.length};
+  (floor.apartments||[]).forEach(function(a){ var t=aptTotals(a); area+=t.area; per+=t.perimeter; count+=t.count; });
+  return {area:area, perimeter:per, count:count, apts:(floor.apartments||[]).length};
+}
+function houseTotals(house){
+  var area=0, per=0, count=0, apts=0;
+  (house.floors||[]).forEach(function(f){ var t=floorTotals(f); area+=t.area; per+=t.perimeter; count+=t.count; apts+=t.apts; });
+  return {area:area, perimeter:per, count:count, apts:apts, floors:(house.floors||[]).length};
 }
 
 // ---------- svg drawing (solved shape: thumbnails, result preview, export) ----------
@@ -388,22 +409,26 @@ function exportFile(filename, mime, content){
 }
 
 // ---------- report ----------
-function buildReportHtml(obj){
-  var ot = objTotals(obj);
-  var dateStr = new Date(obj.createdAt).toLocaleDateString("ru-RU");
-  var aptsHtml = obj.apartments.map(function(apt){
-    var at = aptTotals(apt);
-    var rooms = apt.measurements.map(function(m){
-      var g = computeGeom(m);
-      var svg = polygonSvg(g.vertices, {width:260,height:190,pad:24,strokeColor:"#B5560E",fillColor:"rgba(181,86,14,0.12)",labelBg:"#FFF8F0",labelColor:"#3A2413",dotColor:"#B5560E",walls:wallLenArrayOf(m), diagonals:diagonalsOf(m)});
-      return '<div class="room-card"><div class="room-svg">'+svg+'</div><div class="room-info">'+
-        '<div class="room-name">'+escapeHtml(m.name)+'</div>'+
-        '<div class="room-stats"><span>S = <b>'+fmtM2(g.area)+'</b></span><span>P = <b>'+fmtM(g.perimeter)+'</b></span></div>'+
-        (g.valid && g.maxErr>0.04 ? '<div class="room-warn">Проверьте размеры — есть расхождение ('+(g.maxErr*100).toFixed(0)+'%)</div>' : '')+
-        '</div></div>';
+function buildReportHtml(house){
+  var ht = houseTotals(house);
+  var dateStr = new Date(house.createdAt).toLocaleDateString("ru-RU");
+  var floorsHtml = house.floors.map(function(floor){
+    var ft = floorTotals(floor);
+    var aptsHtml = floor.apartments.map(function(apt){
+      var at = aptTotals(apt);
+      var rooms = apt.drawings.map(function(m){
+        var g = computeGeom(m);
+        var svg = polygonSvg(g.vertices, {width:260,height:190,pad:24,strokeColor:"#B5560E",fillColor:"rgba(181,86,14,0.12)",labelBg:"#FFF8F0",labelColor:"#3A2413",dotColor:"#B5560E",walls:wallLenArrayOf(m), diagonals:diagonalsOf(m)});
+        return '<div class="room-card"><div class="room-svg">'+svg+'</div><div class="room-info">'+
+          '<div class="room-name">'+escapeHtml(m.name)+'</div>'+
+          '<div class="room-stats"><span>S = <b>'+fmtM2(g.area)+'</b></span><span>P = <b>'+fmtM(g.perimeter)+'</b></span></div>'+
+          (g.valid && g.maxErr>0.04 ? '<div class="room-warn">Проверьте размеры — есть расхождение ('+(g.maxErr*100).toFixed(0)+'%)</div>' : '')+
+          '</div></div>';
+      }).join("");
+      return '<section class="apt-sec"><h3>'+escapeHtml(apt.name)+' <span>— '+fmtM2(at.area)+', периметр '+fmtM(at.perimeter)+', чертежей: '+at.count+'</span></h3>'+
+        '<div class="room-grid">'+rooms+'</div></section>';
     }).join("");
-    return '<section class="apt-sec"><h2>'+escapeHtml(apt.name)+' <span>— '+fmtM2(at.area)+', периметр '+fmtM(at.perimeter)+', замеров: '+at.count+'</span></h2>'+
-      '<div class="room-grid">'+rooms+'</div></section>';
+    return '<section class="floor-sec"><h2>'+escapeHtml(floor.name)+' <span>— площадь '+fmtM2(ft.area)+', погонных '+fmtM(ft.perimeter)+', квартир: '+ft.apts+'</span></h2>'+aptsHtml+'</section>';
   }).join("");
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
   '<title>'+escapeHtml(obj.name)+' — замеры потолков</title><style>'+
@@ -412,8 +437,11 @@ function buildReportHtml(obj){
   '.meta{color:#7A6A5A;font-size:13px;margin-bottom:18px;}'+
   '.grand{background:#FFF1DE;border:1.5px solid #E8A257;border-radius:12px;padding:14px 18px;font-size:15px;margin-bottom:26px;}'+
   '.grand b{font-family:monospace;}'+
-  'h2{font-size:16px;border-bottom:2px solid #E8A257;padding-bottom:6px;margin:30px 0 12px;}'+
+  'h2{font-size:18px;border-bottom:2px solid #E8A257;padding-bottom:6px;margin:30px 0 12px;}'+
   'h2 span{font-weight:400;color:#7A6A5A;font-size:13px;}'+
+  'h3{font-size:15px;color:#3A2A18;margin:18px 0 8px;}'+
+  'h3 span{font-weight:400;color:#7A6A5A;font-size:12.5px;}'+
+  '.floor-sec{margin-bottom:26px;}'+
   '.room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}'+
   '.room-card{border:1px solid #EAD9C4;border-radius:10px;overflow:hidden;background:#fff;page-break-inside:avoid;}'+
   '.room-svg{background:#FFFBF5;border-bottom:1px solid #EAD9C4;}'+
@@ -424,10 +452,10 @@ function buildReportHtml(obj){
   '.room-warn{margin-top:5px;font-size:11.5px;color:#B23B2E;}'+
   '@media print{ body{padding:8mm;} }'+
   '</style></head><body>'+
-  '<h1>'+escapeHtml(obj.name)+'</h1>'+
-  '<div class="meta">Дата объекта: '+dateStr+' · сформировано '+new Date().toLocaleString("ru-RU")+'</div>'+
-  '<div class="grand">Итого по объекту: квартир — <b>'+ot.apts+'</b>, замеров — <b>'+ot.count+'</b>, площадь — <b>'+fmtM2(ot.area)+'</b>, периметр — <b>'+fmtM(ot.perimeter)+'</b></div>'+
-  aptsHtml+
+  '<h1>'+escapeHtml(house.name)+'</h1>'+
+  '<div class="meta">Дата: '+dateStr+' · сформировано '+new Date().toLocaleString("ru-RU")+'</div>'+
+  '<div class="grand">Итого по дому: этажей — <b>'+ht.floors+'</b>, квартир — <b>'+ht.apts+'</b>, чертежей — <b>'+ht.count+'</b>, площадь — <b>'+fmtM2(ht.area)+'</b>, погонных — <b>'+fmtM(ht.perimeter)+'</b></div>'+
+  floorsHtml+
   '</body></html>';
 }
 
@@ -438,7 +466,8 @@ function render(){
   var app = el();
   var html = "";
   if (NAV.view==="home") html = renderHome();
-  else if (NAV.view==="object") html = renderObjectScreen();
+  else if (NAV.view==="house") html = renderHouseScreen();
+  else if (NAV.view==="floor") html = renderFloorScreen();
   else if (NAV.view==="apartment") html = renderApartmentScreen();
   else if (NAV.view==="builder") html = renderBuilderScreen();
   if (NAV.modal) html += renderModal();
@@ -455,90 +484,120 @@ function topbar(opts){
 }
 
 function renderHome(){
-  var objs = STATE.objects.slice().sort(function(a,b){ return (b.createdAt||"").localeCompare(a.createdAt||""); });
-  var list = objs.length ? objs.map(function(o){
-    var t = objTotals(o);
-    var d = new Date(o.createdAt).toLocaleDateString("ru-RU");
-    return '<div class="card" data-act="openObject" data-id="'+o.id+'">'+
-      '<div class="card-body"><div class="card-title">'+escapeHtml(o.name)+'</div>'+
+  var houses = STATE.houses.slice().sort(function(a,b){ return (b.createdAt||"").localeCompare(a.createdAt||""); });
+  var list = houses.length ? houses.map(function(h){
+    var t = houseTotals(h);
+    var d = new Date(h.createdAt).toLocaleDateString("ru-RU");
+    return '<div class="card" data-act="openHouse" data-id="'+h.id+'">'+
+      '<div class="card-body"><div class="card-title">'+escapeHtml(h.name)+'</div>'+
       '<div class="card-sub">'+d+'</div>'+
-      '<div class="card-metrics"><span>Кв-р: <b>'+o.apartments.length+'</b></span><span>Замеров: <b>'+t.count+'</b></span><span>Площадь: <b>'+fmtM2(t.area)+'</b></span></div></div>'+
-      '<button class="card-edit" data-act="renameObject" data-id="'+o.id+'">✎</button>'+
+      '<div class="card-metrics"><span>Этажей: <b>'+t.floors+'</b></span><span>Кв-р: <b>'+t.apts+'</b></span><span>Площадь: <b>'+fmtM2(t.area)+'</b></span></div></div>'+
+      '<button class="card-edit" data-act="renameHouse" data-id="'+h.id+'">✎</button>'+
       '<div class="card-chev">›</div></div>';
-  }).join("") : '<div class="empty"><b>Пока нет объектов</b>Нажмите «Новый объект», чтобы начать замеры на доме или адресе.</div>';
+  }).join("") : '<div class="empty"><b>Пока нет домов</b>Нажмите «Новый дом», чтобы начать замеры по адресу.</div>';
   return topbar({title:"Замер Потолков"})+
     '<div class="screen">'+
-    '<div class="section-label">Объекты</div>'+
+    '<div class="section-label">Дома</div>'+
     '<div class="list">'+list+'</div>'+
-    '<div class="footer-links"><button data-act="backupExport">Резервная копия (JSON)</button><button data-act="backupImport">Восстановить из файла</button><input type="file" id="importFile" accept="application/json" style="display:none">'+
     '</div>'+
-    '</div>'+
-    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newObject">+ Новый объект</button></div>';
+    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newHouse">+ Новый дом</button></div>';
 }
 
-function renderObjectScreen(){
-  var obj = findObject(NAV.objectId);
-  if (!obj){ NAV.view="home"; return renderHome(); }
-  var t = objTotals(obj);
-  var apts = obj.apartments.slice();
+function renderHouseScreen(){
+  var house = findHouse(NAV.houseId);
+  if (!house){ NAV.view="home"; return renderHome(); }
+  var t = houseTotals(house);
+  var floors = house.floors.slice();
+  var list = floors.length ? floors.map(function(f){
+    var ft = floorTotals(f);
+    return '<div class="card" data-act="openFloor" data-id="'+f.id+'">'+
+      '<div class="card-body"><div class="card-title">'+escapeHtml(f.name)+'</div>'+
+      '<div class="card-metrics"><span>Кв-р: <b>'+ft.apts+'</b></span><span>Площадь: <b>'+fmtM2(ft.area)+'</b></span><span>Погонных: <b>'+fmtM(ft.perimeter)+'</b></span></div></div>'+
+      '<button class="card-edit" data-act="renameFloor" data-id="'+f.id+'">✎</button>'+
+      '<div class="card-chev">›</div></div>';
+  }).join("") : '<div class="empty"><b>Нет этажей</b>Добавьте первый этаж этого дома.</div>';
+  return topbar({back:"goHome", eyebrow:"Дом", title:house.name, action:{act:"renameHouse:"+house.id, label:"✎"}})+
+    '<div class="screen">'+
+    '<div class="totals-bar">'+
+      '<div class="stat"><div class="stat-value num">'+t.floors+'</div><div class="stat-label">Этажей</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+t.apts+'</div><div class="stat-label">Квартир</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM2(t.area)+'</div><div class="stat-label">Площадь</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM(t.perimeter)+'</div><div class="stat-label">Погонные</div></div>'+
+    '</div>'+
+    '<div class="section-label">Этажи</div>'+
+    '<div class="list">'+list+'</div>'+
+    '<div class="btn-row"><button class="btn btn-secondary" data-act="deleteHouse" data-id="'+house.id+'">Удалить дом</button>'+
+    '<button class="btn btn-secondary" data-act="exportHouse" data-id="'+house.id+'">Экспорт на производство</button></div>'+
+    '</div>'+
+    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newFloor">+ Новый этаж</button></div>';
+}
+
+function renderFloorScreen(){
+  var house = findHouse(NAV.houseId);
+  if (!house){ NAV.view="home"; return renderHome(); }
+  var floor = findFloor(house, NAV.floorId);
+  if (!floor){ NAV.view="house"; return renderHouseScreen(); }
+  var t = floorTotals(floor);
+  var apts = floor.apartments.slice();
   var list = apts.length ? apts.map(function(a){
     var at = aptTotals(a);
     return '<div class="card" data-act="openApartment" data-id="'+a.id+'">'+
       '<div class="card-body"><div class="card-title">'+escapeHtml(a.name)+'</div>'+
-      '<div class="card-metrics"><span>Замеров: <b>'+at.count+'</b></span><span>Площадь: <b>'+fmtM2(at.area)+'</b></span><span>Периметр: <b>'+fmtM(at.perimeter)+'</b></span></div></div>'+
+      '<div class="card-metrics"><span>Чертежей: <b>'+at.count+'</b></span><span>Площадь: <b>'+fmtM2(at.area)+'</b></span><span>Погонных: <b>'+fmtM(at.perimeter)+'</b></span></div></div>'+
       '<button class="card-edit" data-act="renameApartment" data-id="'+a.id+'">✎</button>'+
       '<div class="card-chev">›</div></div>';
-  }).join("") : '<div class="empty"><b>Нет квартир</b>Добавьте первую квартиру этого объекта.</div>';
-  return topbar({back:"goHome", eyebrow:"Объект", title:obj.name, action:{act:"renameObject:"+obj.id, label:"✎"}})+
+  }).join("") : '<div class="empty"><b>Нет квартир</b>Добавьте первую квартиру этого этажа.</div>';
+  return topbar({back:"backToHouse", eyebrow:escapeHtml(house.name), title:floor.name, action:{act:"renameFloor:"+floor.id, label:"✎"}})+
     '<div class="screen">'+
     '<div class="totals-bar">'+
-      '<div class="stat"><div class="stat-value num">'+obj.apartments.length+'</div><div class="stat-label">Квартир</div></div>'+
-      '<div class="stat"><div class="stat-value num">'+t.count+'</div><div class="stat-label">Замеров</div></div>'+
-      '<div class="stat"><div class="stat-value num">'+fmtM2(t.area)+'</div><div class="stat-label">Площадь</div></div>'+
-      '<div class="stat"><div class="stat-value num">'+fmtM(t.perimeter)+'</div><div class="stat-label">Периметр</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+t.apts+'</div><div class="stat-label">Квартир</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+t.count+'</div><div class="stat-label">Чертежей</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM2(t.area)+'</div><div class="stat-label">Площадь этажа</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+fmtM(t.perimeter)+'</div><div class="stat-label">Погонные</div></div>'+
     '</div>'+
     '<div class="section-label">Квартиры</div>'+
     '<div class="list">'+list+'</div>'+
-    '<div class="btn-row"><button class="btn btn-secondary" data-act="deleteObject" data-id="'+obj.id+'">Удалить объект</button>'+
-    '<button class="btn btn-secondary" data-act="exportObject" data-id="'+obj.id+'">Экспорт на производство</button></div>'+
+    '<button class="btn btn-secondary" data-act="deleteFloor" data-id="'+floor.id+'">Удалить этаж</button>'+
     '</div>'+
     '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newApartment">+ Новая квартира</button></div>';
 }
 
 function renderApartmentScreen(){
-  var obj = findObject(NAV.objectId);
-  if (!obj){ NAV.view="home"; return renderHome(); }
-  var apt = findApartment(obj, NAV.apartmentId);
-  if (!apt){ NAV.view="object"; return renderObjectScreen(); }
+  var house = findHouse(NAV.houseId);
+  if (!house){ NAV.view="home"; return renderHome(); }
+  var floor = findFloor(house, NAV.floorId);
+  if (!floor){ NAV.view="house"; return renderHouseScreen(); }
+  var apt = findApt(floor, NAV.apartmentId);
+  if (!apt){ NAV.view="floor"; return renderFloorScreen(); }
   var at = aptTotals(apt);
-  var list = apt.measurements.length ? apt.measurements.map(function(m){
+  var list = apt.drawings.length ? apt.drawings.map(function(m){
     var g = computeGeom(m);
     var v = svgCssVars();
     var thumb = polygonSvg(g.vertices, Object.assign({width:60,height:52,pad:8}, v));
-    return '<div class="card" data-act="openMeasurement" data-id="'+m.id+'">'+
+    return '<div class="card" data-act="openDrawing" data-id="'+m.id+'">'+
       '<div class="card-thumb">'+thumb+'</div>'+
       '<div class="card-body"><div class="card-title">'+escapeHtml(m.name)+'</div>'+
       '<div class="card-metrics"><span>Площадь: <b>'+fmtM2(g.area)+'</b></span><span>Периметр: <b>'+fmtM(g.perimeter)+'</b></span></div>'+
       (g.valid && g.maxErr>0.04 ? '<div class="card-metrics" style="color:var(--warn)">⚠ проверьте размеры</div>' : '')+
       '</div>'+
       '<div class="card-chev">›</div></div>';
-  }).join("") : '<div class="empty"><b>Нет замеров</b>Нажмите «Новый замер» и обведите потолок пальцем по клеточкам.</div>';
-  return topbar({back:"backToObject", eyebrow:escapeHtml(obj.name), title:apt.name, action:{act:"renameApartment:"+apt.id, label:"✎"}})+
+  }).join("") : '<div class="empty"><b>Нет чертежей</b>Нажмите «Новый чертёж» и обведите контур пальцем по клеточкам.</div>';
+  return topbar({back:"backToFloor", eyebrow:escapeHtml(house.name+" · "+floor.name), title:apt.name, action:{act:"renameApartment:"+apt.id, label:"✎"}})+
     '<div class="screen">'+
     '<div class="totals-bar">'+
-      '<div class="stat"><div class="stat-value num">'+at.count+'</div><div class="stat-label">Замеров</div></div>'+
+      '<div class="stat"><div class="stat-value num">'+at.count+'</div><div class="stat-label">Чертежей</div></div>'+
       '<div class="stat"><div class="stat-value num">'+fmtM2(at.area)+'</div><div class="stat-label">Площадь</div></div>'+
       '<div class="stat"><div class="stat-value num">'+fmtM(at.perimeter)+'</div><div class="stat-label">Периметр</div></div>'+
     '</div>'+
-    '<div class="section-label">Замеры</div>'+
+    '<div class="section-label">Чертежи</div>'+
     '<div class="list">'+list+'</div>'+
     '<button class="btn btn-secondary" data-act="deleteApartment" data-id="'+apt.id+'">Удалить квартиру</button>'+
     '</div>'+
-    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newMeasurement">+ Новый замер</button></div>';
+    '<div class="fab-wrap"><button class="btn btn-primary btn-block" data-act="newDrawing">+ Новый чертёж</button></div>';
 }
 
 // ---------- builder: draw-on-grid canvas ----------
-function newBuilder(objId, aptId, editingMeas){
+function newBuilder(houseId, floorId, aptId, editingMeas){
   if (editingMeas){
     var pts, wl, diags;
     if (editingMeas.turns){
@@ -551,11 +610,11 @@ function newBuilder(objId, aptId, editingMeas){
       wl = (editingMeas.wallLengths||[]).slice();
       diags = (editingMeas.diagonals||[]).map(function(d){ return {a:d.a,b:d.b,length:d.length}; });
     }
-    return {objId:objId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
+    return {houseId:houseId, floorId:floorId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
       points:pts, wallLengths:wl, diagonals:diags, closed:true, resultMode:true, mode:"diagonal",
       pending:null, editSeg:null, drag:null, view:{zoom:1, panX:0, panY:0}};
   }
-  return {objId:objId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
+  return {houseId:houseId, floorId:floorId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
     closed:false, resultMode:false, mode:"wall", pending:null, editSeg:null, drag:null, view:{zoom:1, panX:0, panY:0}};
 }
 
@@ -649,11 +708,11 @@ function buildBuilderCanvasSvg(b){
   var dragEl = "";
   if (b.drag){
     if (b.drag.mode==="wall-first"){
-      var s0=toSvg(b.drag.startRaw), s1=toSvg(b.drag.curRaw);
+      var s0=toSvg(snapToGrid(b.drag.startRaw)), s1=toSvg(orthoSnap(b.drag.startRaw, b.drag.curRaw));
       dragEl = '<line x1="'+s0.x.toFixed(1)+'" y1="'+s0.y.toFixed(1)+'" x2="'+s1.x.toFixed(1)+'" y2="'+s1.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
     } else if (b.drag.mode==="wall-next"){
       var last=b.points[b.points.length-1];
-      var s2=toSvg(last), s3=toSvg(b.drag.curRaw);
+      var s2=toSvg(last), s3=toSvg(orthoSnap(last, b.drag.curRaw));
       dragEl = '<line x1="'+s2.x.toFixed(1)+'" y1="'+s2.y.toFixed(1)+'" x2="'+s3.x.toFixed(1)+'" y2="'+s3.y.toFixed(1)+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-dasharray="6 5" opacity="0.85" stroke-linecap="round"/>';
     } else if (b.drag.mode==="diagonal"){
       var s4=toSvg(b.points[b.drag.aIdx]), s5=toSvg(b.drag.curRaw);
@@ -728,7 +787,7 @@ function renderBuilderScreen(){
       '<div class="result-stat"><div class="result-stat-value num">'+fmtM(g.perimeter)+'</div><div class="result-stat-label">Периметр</div></div>'+
       '</div>'+banner+
       '<div class="btn-row"><button class="btn btn-secondary" data-act="addDiagonalMore">+ Диагональ</button><button class="btn btn-secondary" data-act="reopenBuilder">Изменить</button></div>'+
-      '<div class="field"><div class="field-label">Название замера</div><input class="input" id="measNameInput" type="text" value="'+escapeHtml(b.name)+'"></div>'+
+      '<div class="field"><div class="field-label">Название чертежа</div><input class="input" id="measNameInput" type="text" value="'+escapeHtml(b.name)+'"></div>'+
       '<button class="btn btn-primary btn-block" data-act="saveMeasurement">Сохранить</button>';
   } else {
     canvasHtml = buildBuilderCanvasSvg(b);
@@ -743,7 +802,7 @@ function renderBuilderScreen(){
         '<button class="dir-btn '+(b.mode==="wall"?"active":"")+'" data-act="setMode" data-mode="wall" '+(b.closed?"disabled":"")+'>✏️ Стена</button>'+
         '<button class="dir-btn '+(b.mode==="diagonal"?"active":"")+'" data-act="setMode" data-mode="diagonal" '+(b.points.length<3?"disabled":"")+'>📏 Диагональ</button>'+
         '</div>';
-      var hint = '<div class="canvas-hint">'+(b.mode==="wall" ? "Проведите пальцем по клеточкам — от последней точки до следующего угла" : "Проведите линию между двумя уже поставленными точками")+'</div>';
+      var hint = '<div class="canvas-hint">'+(b.mode==="wall" ? "Свайп по клеточкам — стена ляжет строго по горизонтали или вертикали (90°)" : "Проведите линию между двумя уже поставленными точками")+'</div>';
       body = modeToggle + hint + renderSegList(b) +
         (canClose ? '<button class="btn btn-secondary btn-block" data-act="closeToStart">Замкнуть контур на '+pointLabel(0)+'</button>' : "")+
         '<div class="btn-row">'+
@@ -753,7 +812,7 @@ function renderBuilderScreen(){
     }
   }
 
-  return topbar({back:"cancelBuilderConfirm", eyebrow:"Замер", title: b.editingId ? "Редактирование" : "Новый замер"})+
+  return topbar({back:"cancelBuilderConfirm", eyebrow:"Чертёж", title: b.editingId ? "Редактирование" : "Новый чертёж"})+
     '<div class="screen-builder">'+
     '<div class="canvas-stage">'+
       '<div class="builder-canvas" id="builderSvgWrap">'+canvasHtml+'</div>'+
@@ -809,6 +868,14 @@ function roughFromClient(clientX, clientY){
   return {x:x, y:y};
 }
 function snapToGrid(p){ return {x:Math.round(p.x*GRID_SUB)/GRID_SUB, y:Math.round(p.y*GRID_SUB)/GRID_SUB}; }
+// Constrain a wall to run strictly horizontally or vertically from `start`
+// (walls follow the grid; no diagonals). The dominant swipe axis wins.
+function orthoSnap(start, endRaw){
+  var s = snapToGrid(start), e = snapToGrid(endRaw);
+  var dx = e.x - s.x, dy = e.y - s.y;
+  if (Math.abs(dx) >= Math.abs(dy)) return {x:e.x, y:s.y}; // horizontal
+  return {x:s.x, y:e.y}; // vertical
+}
 function nearestExistingPoint(p, points, maxDist){
   var best=-1, bestD=Infinity;
   points.forEach(function(pt,i){ var d=Math.hypot(pt.x-p.x, pt.y-p.y); if (d<bestD){ bestD=d; best=i; } });
@@ -920,12 +987,12 @@ function onCanvasPointerUp(e){
   if (!wasDraw) return;
   var drag = b.drag; b.drag = null;
   if (drag.mode==="wall-first"){
-    var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(raw);
+    var p0 = snapToGrid(drag.startRaw), p1 = orthoSnap(drag.startRaw, raw);
     if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.15){ render(); return; }
     b.pending = {type:"wall", newPoints:[p0,p1], closing:false};
   } else if (drag.mode==="wall-next"){
     var last = b.points[b.points.length-1];
-    var pnew = snapToGrid(raw);
+    var pnew = orthoSnap(last, raw);
     if (b.points.length>=3 && Math.hypot(pnew.x-b.points[0].x, pnew.y-b.points[0].y) < 0.75){
       b.pending = {type:"wall", newPoints:[], closing:true};
     } else if (Math.hypot(pnew.x-last.x, pnew.y-last.y) < 0.15){
@@ -967,96 +1034,92 @@ function readNum(id, fallback){
 
 function actions(act, ds){
   var b = NAV.builder;
-  if (act==="newObject"){
-    var o = {id:uid(), name:"Объект "+(STATE.objects.length+1), createdAt:nowIso(), apartments:[]};
-    STATE.objects.push(o); persist();
-    NAV = {view:"object", objectId:o.id}; render(); return;
+  if (act==="newHouse"){
+    var h = {id:uid(), name:"Дом "+(STATE.houses.length+1), createdAt:nowIso(), floors:[]};
+    STATE.houses.push(h); persist();
+    NAV = {view:"house", houseId:h.id}; render(); return;
   }
-  if (act==="openObject"){ NAV = {view:"object", objectId:ds.id}; render(); return; }
+  if (act==="openHouse"){ NAV = {view:"house", houseId:ds.id}; render(); return; }
   if (act==="goHome"){ NAV = {view:"home"}; render(); return; }
-  if (act==="backToObject"){ NAV = {view:"object", objectId:NAV.objectId}; render(); return; }
-  if (act==="renameObject"){
-    var o2 = findObject(ds.id);
-    NAV.modal = {type:"rename", level:"object", id:ds.id, title:"Название объекта", value:o2.name};
+  if (act==="backToHouse"){ NAV = {view:"house", houseId:NAV.houseId}; render(); return; }
+  if (act==="backToFloor"){ NAV = {view:"floor", houseId:NAV.houseId, floorId:NAV.floorId}; render(); return; }
+  if (act==="openFloor"){ NAV = {view:"floor", houseId:NAV.houseId, floorId:ds.id}; render(); return; }
+  if (act==="newFloor"){
+    var hF = findHouse(NAV.houseId);
+    var nf = {id:uid(), name:"Этаж "+(hF.floors.length+1), createdAt:nowIso(), apartments:[]};
+    hF.floors.push(nf); persist();
+    NAV = {view:"floor", houseId:hF.id, floorId:nf.id}; render(); return;
+  }
+  if (act==="openApartment"){ NAV = {view:"apartment", houseId:NAV.houseId, floorId:NAV.floorId, apartmentId:ds.id}; render(); return; }
+  if (act==="newApartment"){
+    var hA=findHouse(NAV.houseId); var fA=findFloor(hA,NAV.floorId);
+    var na = {id:uid(), name:"Квартира "+(fA.apartments.length+1), createdAt:nowIso(), drawings:[]};
+    fA.apartments.push(na); persist();
+    NAV = {view:"apartment", houseId:hA.id, floorId:fA.id, apartmentId:na.id}; render(); return;
+  }
+  if (act==="openDrawing"){
+    var hD=findHouse(NAV.houseId); var fD=findFloor(hD,NAV.floorId); var aD=findApt(fD,NAV.apartmentId); var mD=findDrawing(aD,ds.id);
+    NAV.view="builder"; NAV.builder = newBuilder(hD.id, fD.id, aD.id, mD); render(); return;
+  }
+  if (act==="newDrawing"){
+    var hN=findHouse(NAV.houseId); var fN=findFloor(hN,NAV.floorId); var aN=findApt(fN,NAV.apartmentId);
+    NAV.view="builder"; NAV.builder = newBuilder(hN.id, fN.id, aN.id, null);
+    NAV.builder.name = "Чертёж "+(aN.drawings.length+1);
     render(); return;
   }
-  if (act && act.indexOf("renameObject:")===0){
-    var oid = act.split(":")[1]; var o3=findObject(oid);
-    NAV.modal = {type:"rename", level:"object", id:oid, title:"Название объекта", value:o3.name};
-    render(); return;
+  if (act==="renameHouse" || (act && act.indexOf("renameHouse:")===0)){
+    var rhId = ds.id || act.split(":")[1]; var rh=findHouse(rhId);
+    NAV.modal = {type:"rename", level:"house", id:rhId, title:"Название дома", value:rh.name}; render(); return;
   }
-  if (act==="renameApartment"){
-    var obj = findObject(NAV.objectId); var a = findApartment(obj, ds.id);
-    NAV.modal = {type:"rename", level:"apartment", id:ds.id, title:"Название квартиры", value:a.name};
-    render(); return;
+  if (act==="renameFloor" || (act && act.indexOf("renameFloor:")===0)){
+    var rfId = ds.id || act.split(":")[1]; var rfH=findHouse(NAV.houseId); var rf=findFloor(rfH,rfId);
+    NAV.modal = {type:"rename", level:"floor", id:rfId, title:"Название этажа", value:rf.name}; render(); return;
   }
-  if (act && act.indexOf("renameApartment:")===0){
-    var aid = act.split(":")[1]; var obj4=findObject(NAV.objectId); var a4=findApartment(obj4,aid);
-    NAV.modal = {type:"rename", level:"apartment", id:aid, title:"Название квартиры", value:a4.name};
-    render(); return;
+  if (act==="renameApartment" || (act && act.indexOf("renameApartment:")===0)){
+    var raId = ds.id || act.split(":")[1]; var raH=findHouse(NAV.houseId); var raF=findFloor(raH,NAV.floorId); var ra=findApt(raF,raId);
+    NAV.modal = {type:"rename", level:"apartment", id:raId, title:"Название квартиры", value:ra.name}; render(); return;
   }
   if (act==="confirmRename"){
     var val = document.getElementById("renameInput").value.trim();
     if (val){
-      if (NAV.modal.level==="object"){ findObject(NAV.modal.id).name = val; }
-      else if (NAV.modal.level==="apartment"){ findApartment(findObject(NAV.objectId), NAV.modal.id).name = val; }
-      else if (NAV.modal.level==="measurement"){ findMeasurement(findApartment(findObject(NAV.objectId),NAV.apartmentId), NAV.modal.id).name = val; }
+      var lvl = NAV.modal.level, mid = NAV.modal.id;
+      var h0=findHouse(NAV.houseId), f0=h0&&findFloor(h0,NAV.floorId), a0=f0&&findApt(f0,NAV.apartmentId);
+      if (lvl==="house"){ findHouse(mid).name = val; }
+      else if (lvl==="floor"){ findFloor(h0,mid).name = val; }
+      else if (lvl==="apartment"){ findApt(f0,mid).name = val; }
+      else if (lvl==="drawing"){ findDrawing(a0,mid).name = val; }
       persist();
     }
     NAV.modal = null; render(); return;
   }
   if (act==="closeModal" || act==="closeModalBackdrop"){ NAV.modal = null; render(); return; }
-  if (act==="deleteObject"){
-    var o5 = findObject(ds.id);
-    NAV.modal = {type:"confirmDelete", level:"object", id:ds.id, name:o5.name};
-    render(); return;
-  }
-  if (act==="deleteApartment"){
-    var obj6=findObject(NAV.objectId); var a6=findApartment(obj6,ds.id);
-    NAV.modal = {type:"confirmDelete", level:"apartment", id:ds.id, name:a6.name};
-    render(); return;
-  }
+  if (act==="deleteHouse"){ var dh=findHouse(ds.id); NAV.modal={type:"confirmDelete", level:"house", id:ds.id, name:dh.name}; render(); return; }
+  if (act==="deleteFloor"){ var dfH=findHouse(NAV.houseId); var df=findFloor(dfH,ds.id); NAV.modal={type:"confirmDelete", level:"floor", id:ds.id, name:df.name}; render(); return; }
+  if (act==="deleteApartment"){ var daH=findHouse(NAV.houseId); var daF=findFloor(daH,NAV.floorId); var da=findApt(daF,ds.id); NAV.modal={type:"confirmDelete", level:"apartment", id:ds.id, name:da.name}; render(); return; }
   if (act==="confirmDelete"){
-    if (NAV.modal.level==="object"){
-      STATE.objects = STATE.objects.filter(function(o){return o.id!==NAV.modal.id;});
+    var lvl2=NAV.modal.level, mid2=NAV.modal.id;
+    var h1=findHouse(NAV.houseId), f1=h1&&findFloor(h1,NAV.floorId);
+    if (lvl2==="house"){
+      STATE.houses = STATE.houses.filter(function(x){return x.id!==mid2;});
       persist(); NAV = {view:"home"};
-    } else if (NAV.modal.level==="apartment"){
-      var obj7 = findObject(NAV.objectId);
-      obj7.apartments = obj7.apartments.filter(function(a){return a.id!==NAV.modal.id;});
-      persist(); NAV = {view:"object", objectId:obj7.id};
-    } else if (NAV.modal.level==="measurement"){
-      var obj8=findObject(NAV.objectId); var apt8=findApartment(obj8,NAV.apartmentId);
-      apt8.measurements = apt8.measurements.filter(function(m){return m.id!==NAV.modal.id;});
-      persist(); NAV = {view:"apartment", objectId:obj8.id, apartmentId:apt8.id};
+    } else if (lvl2==="floor"){
+      h1.floors = h1.floors.filter(function(x){return x.id!==mid2;});
+      persist(); NAV = {view:"house", houseId:h1.id};
+    } else if (lvl2==="apartment"){
+      f1.apartments = f1.apartments.filter(function(x){return x.id!==mid2;});
+      persist(); NAV = {view:"floor", houseId:h1.id, floorId:f1.id};
     }
     NAV.modal = null; render(); return;
   }
-  if (act==="openApartment"){ NAV = {view:"apartment", objectId:NAV.objectId, apartmentId:ds.id}; render(); return; }
-  if (act==="newApartment"){
-    var obj9 = findObject(NAV.objectId);
-    var a9 = {id:uid(), name:"Квартира "+(obj9.apartments.length+1), createdAt:nowIso(), measurements:[]};
-    obj9.apartments.push(a9); persist();
-    NAV = {view:"apartment", objectId:obj9.id, apartmentId:a9.id}; render(); return;
-  }
-  if (act==="openMeasurement"){
-    var obj10=findObject(NAV.objectId); var apt10=findApartment(obj10,NAV.apartmentId); var m10=findMeasurement(apt10,ds.id);
-    NAV.view="builder"; NAV.builder = newBuilder(obj10.id, apt10.id, m10); render(); return;
-  }
-  if (act==="newMeasurement"){
-    var obj11=findObject(NAV.objectId); var apt11=findApartment(obj11,NAV.apartmentId);
-    NAV.view="builder"; NAV.builder = newBuilder(obj11.id, apt11.id, null);
-    NAV.builder.name = "Замер "+(apt11.measurements.length+1);
-    render(); return;
-  }
   if (act==="cancelBuilderConfirm"){
-    if (b.points.length===0 && !b.pending){ NAV = {view:"apartment", objectId:b.objId, apartmentId:b.aptId}; render(); return; }
+    if (b.points.length===0 && !b.pending){ NAV = {view:"apartment", houseId:b.houseId, floorId:b.floorId, apartmentId:b.aptId}; render(); return; }
     NAV.modal = {type:"cancelBuilderConfirm"}; render(); return;
   }
   if (act==="confirmCancelBuilder"){
-    var objId=b.objId, aptId=b.aptId; NAV = {view:"apartment", objectId:objId, apartmentId:aptId}; NAV.modal=null; render(); return;
+    NAV = {view:"apartment", houseId:b.houseId, floorId:b.floorId, apartmentId:b.aptId}; NAV.modal=null; render(); return;
   }
   if (act==="cancelBuilder"){
-    NAV = {view:"apartment", objectId:b.objId, apartmentId:b.aptId}; render(); return;
+    NAV = {view:"apartment", houseId:b.houseId, floorId:b.floorId, apartmentId:b.aptId}; render(); return;
   }
   if (act==="zoomIn"){ zoomCanvas(1.25); return; }
   if (act==="zoomOut"){ zoomCanvas(1/1.25); return; }
@@ -1121,36 +1184,27 @@ function actions(act, ds){
     render(); return;
   }
   if (act==="saveMeasurement"){
-    var nameVal = document.getElementById("measNameInput").value.trim() || "Замер";
-    var obj12 = findObject(b.objId); var apt12 = findApartment(obj12, b.aptId);
+    var nameVal = document.getElementById("measNameInput").value.trim() || "Чертёж";
+    var hS = findHouse(b.houseId); var fS = findFloor(hS, b.floorId); var apt12 = findApt(fS, b.aptId);
     var newMeas = {id: b.editingId||uid(), name:nameVal, createdAt:nowIso(),
       points: b.points.map(function(p){return {x:p.x,y:p.y};}),
       wallLengths: b.wallLengths.slice(),
       diagonals: b.diagonals.map(function(d){return {a:d.a,b:d.b,length:d.length};})};
     if (b.editingId){
-      var idxM = apt12.measurements.findIndex(function(m){return m.id===b.editingId;});
-      if (idxM>=0){ newMeas.createdAt = apt12.measurements[idxM].createdAt; apt12.measurements[idxM] = newMeas; }
-      else { apt12.measurements.push(newMeas); }
+      var idxM = apt12.drawings.findIndex(function(m){return m.id===b.editingId;});
+      if (idxM>=0){ newMeas.createdAt = apt12.drawings[idxM].createdAt; apt12.drawings[idxM] = newMeas; }
+      else { apt12.drawings.push(newMeas); }
     } else {
-      apt12.measurements.push(newMeas);
+      apt12.drawings.push(newMeas);
     }
     persist();
-    NAV = {view:"apartment", objectId:obj12.id, apartmentId:apt12.id}; render(); return;
+    NAV = {view:"apartment", houseId:hS.id, floorId:fS.id, apartmentId:apt12.id}; render(); return;
   }
-  if (act==="exportObject"){
-    var obj13 = findObject(ds.id);
-    var html = buildReportHtml(obj13);
-    var fname = "Замеры_"+obj13.name.replace(/[^a-zA-Zа-яА-Я0-9_\- ]/g,"").replace(/\s+/g,"_")+".html";
+  if (act==="exportHouse"){
+    var house13 = findHouse(ds.id);
+    var html = buildReportHtml(house13);
+    var fname = "Замеры_"+house13.name.replace(/[^a-zA-Zа-яА-Я0-9_\- ]/g,"").replace(/\s+/g,"_")+".html";
     exportFile(fname, "text/html", html);
-    return;
-  }
-  if (act==="backupExport"){
-    var json = JSON.stringify(STATE, null, 2);
-    exportFile("ceilings_backup_"+new Date().toISOString().slice(0,10)+".json", "application/json", json);
-    return;
-  }
-  if (act==="backupImport"){
-    document.getElementById("importFile").click();
     return;
   }
 }
@@ -1160,22 +1214,6 @@ document.addEventListener("click", function(e){
   if (!t) return;
   var act = t.getAttribute("data-act");
   actions(act, t.dataset);
-});
-document.addEventListener("change", function(e){
-  if (e.target && e.target.id==="importFile"){
-    var f = e.target.files[0];
-    if (!f) return;
-    var reader = new FileReader();
-    reader.onload = function(){
-      try{
-        var data = JSON.parse(reader.result);
-        if (data && Array.isArray(data.objects)){
-          STATE = data; persist(); NAV = {view:"home"}; render(); toast("Данные восстановлены");
-        } else { toast("Файл не похож на резервную копию"); }
-      }catch(err){ toast("Не удалось прочитать файл"); }
-    };
-    reader.readAsText(f);
-  }
 });
 
 render();
