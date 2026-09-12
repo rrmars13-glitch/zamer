@@ -148,6 +148,8 @@ var STORAGE_KEY = "ceilingMeasure_v2";
 var STORAGE_KEY_LEGACY = "ceilingMeasure_v1";
 var CANVAS_W = 320, CANVAS_H = 500;
 var CANVAS_XFORM = null;
+// Each large grid cell is divided into GRID_SUB smaller cells; drawing snaps to the fine grid.
+var GRID_SUB = 5;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function nowIso(){ return new Date().toISOString(); }
@@ -581,6 +583,18 @@ function buildBuilderCanvasSvg(b){
   var grid = "";
   var gx0=Math.floor(bounds.minX), gx1=Math.ceil(bounds.maxX);
   var gy0=Math.floor(bounds.minY), gy1=Math.ceil(bounds.maxY);
+  // minor grid (small cells inside each large cell)
+  for (var ix=gx0*GRID_SUB; ix<=gx1*GRID_SUB; ix++){
+    if (ix % GRID_SUB === 0) continue;
+    var mx=ix/GRID_SUB, a1=toSvg({x:mx,y:bounds.minY}), a2=toSvg({x:mx,y:bounds.maxY});
+    grid += '<line x1="'+a1.x.toFixed(1)+'" y1="'+a1.y.toFixed(1)+'" x2="'+a2.x.toFixed(1)+'" y2="'+a2.y.toFixed(1)+'" stroke="'+v.lineColor+'" stroke-width="0.5" opacity="0.22"/>';
+  }
+  for (var iy=gy0*GRID_SUB; iy<=gy1*GRID_SUB; iy++){
+    if (iy % GRID_SUB === 0) continue;
+    var my=iy/GRID_SUB, b1=toSvg({x:bounds.minX,y:my}), b2=toSvg({x:bounds.maxX,y:my});
+    grid += '<line x1="'+b1.x.toFixed(1)+'" y1="'+b1.y.toFixed(1)+'" x2="'+b2.x.toFixed(1)+'" y2="'+b2.y.toFixed(1)+'" stroke="'+v.lineColor+'" stroke-width="0.5" opacity="0.22"/>';
+  }
+  // major grid (large cells)
   for (var gx=gx0; gx<=gx1; gx++){
     var p1=toSvg({x:gx,y:bounds.minY}), p2=toSvg({x:gx,y:bounds.maxY});
     grid += '<line x1="'+p1.x.toFixed(1)+'" y1="'+p1.y.toFixed(1)+'" x2="'+p2.x.toFixed(1)+'" y2="'+p2.y.toFixed(1)+'" stroke="'+v.lineColor+'" stroke-width="1" opacity="0.5"/>';
@@ -774,7 +788,7 @@ function roughFromClient(clientX, clientY){
   var y = CANVAS_XFORM.minY + (CANVAS_XFORM.H-CANVAS_XFORM.offsetY-py)/CANVAS_XFORM.scale;
   return {x:x, y:y};
 }
-function snapToGrid(p){ return {x:Math.round(p.x), y:Math.round(p.y)}; }
+function snapToGrid(p){ return {x:Math.round(p.x*GRID_SUB)/GRID_SUB, y:Math.round(p.y*GRID_SUB)/GRID_SUB}; }
 function nearestExistingPoint(p, points, maxDist){
   var best=-1, bestD=Infinity;
   points.forEach(function(pt,i){ var d=Math.hypot(pt.x-p.x, pt.y-p.y); if (d<bestD){ bestD=d; best=i; } });
@@ -815,14 +829,14 @@ function onCanvasPointerUp(e){
   var drag = b.drag; b.drag = null;
   if (drag.mode==="wall-first"){
     var p0 = snapToGrid(drag.startRaw), p1 = snapToGrid(raw);
-    if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.6){ render(); return; }
+    if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.15){ render(); return; }
     b.pending = {type:"wall", newPoints:[p0,p1], closing:false};
   } else if (drag.mode==="wall-next"){
     var last = b.points[b.points.length-1];
     var pnew = snapToGrid(raw);
     if (b.points.length>=3 && Math.hypot(pnew.x-b.points[0].x, pnew.y-b.points[0].y) < 0.75){
       b.pending = {type:"wall", newPoints:[], closing:true};
-    } else if (Math.hypot(pnew.x-last.x, pnew.y-last.y) < 0.6){
+    } else if (Math.hypot(pnew.x-last.x, pnew.y-last.y) < 0.15){
       render(); return;
     } else {
       b.pending = {type:"wall", newPoints:[pnew], closing:false};
