@@ -142,6 +142,19 @@
   .footer-links{display:flex;justify-content:center;gap:18px;padding:6px 0 2px;}
   .footer-links button{border:none;background:transparent;color:var(--ink-dim);font-size:12.5px;text-decoration:underline;}
   @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important;} }
+
+  /* custom numeric keypad */
+  .wall-row-active{background:var(--accent-soft,#eef3ff);box-shadow:inset 3px 0 0 var(--accent,#2f6bff);}
+  .wall-row .wval-empty{color:var(--ink-dim);opacity:.6;}
+  .kp-head{text-align:center;font-size:13px;color:var(--ink-dim);font-weight:600;margin-top:2px;}
+  .kp-display{display:flex;align-items:baseline;justify-content:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-top:2px;}
+  .kp-display .kp-value{font-family:var(--font-mono);font-weight:700;font-size:30px;letter-spacing:.02em;}
+  .kp-display .kp-unit{font-size:14px;color:var(--ink-dim);font-weight:600;}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px;}
+  .kp-btn{border:1px solid var(--line);background:var(--surface);border-radius:14px;font-family:var(--font-mono);font-weight:700;font-size:24px;padding:16px 0;color:var(--ink);box-shadow:var(--shadow);-webkit-user-select:none;user-select:none;touch-action:manipulation;transition:transform .05s,background .1s;}
+  .kp-btn:active{transform:scale(.95);background:var(--accent-soft,#eef3ff);}
+  .kp-btn.kp-mut{color:var(--ink-dim);font-size:20px;}
+  .kp-ok{margin-top:4px;font-size:16px;padding:15px 0;}
 </style>
 </head>
 <body>
@@ -612,10 +625,12 @@ function newBuilder(houseId, floorId, aptId, editingMeas){
     }
     return {houseId:houseId, floorId:floorId, aptId:aptId, editingId:editingMeas.id, name:editingMeas.name,
       points:pts, wallLengths:wl, diagonals:diags, closed:true, resultMode:true, mode:"diagonal",
+      measuring:false, measureIdx:0, kp:"", diagPending:null, addingDiag:false,
       pending:null, editSeg:null, drag:null, view:{zoom:1, panX:0, panY:0}};
   }
   return {houseId:houseId, floorId:floorId, aptId:aptId, editingId:null, name:"", points:[], wallLengths:[], diagonals:[],
-    closed:false, resultMode:false, mode:"wall", pending:null, editSeg:null, drag:null, view:{zoom:1, panX:0, panY:0}};
+    closed:false, resultMode:false, mode:"wall", measuring:false, measureIdx:0, kp:"", diagPending:null, addingDiag:false,
+    pending:null, editSeg:null, drag:null, view:{zoom:1, panX:0, panY:0}};
 }
 
 function computeFitBounds(pts){
@@ -676,8 +691,32 @@ function buildBuilderCanvasSvg(b){
     pathEl = '<path d="'+pathD+'" fill="'+(b.closed?v.fillColor:"none")+'" stroke="'+v.strokeColor+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
   }
 
+  // Colour walls by state: measured = green, current (being measured) = red,
+  // not-yet-measured = default (black) from pathEl underneath. Matches reference app.
+  var measuredEls = "";
+  if (b.closed && b.points.length>=2 && b.wallLengths){
+    for (var wi=0; wi<b.wallLengths.length; wi++){
+      if (b.wallLengths[wi]==null) continue;
+      if (b.measuring && wi===b.measureIdx) continue; // current wall drawn red below
+      var ga=b.points[wi], gb=b.points[(wi+1)%b.points.length];
+      if (!ga||!gb) continue;
+      var sga=toSvg(ga), sgb=toSvg(gb);
+      measuredEls += '<line x1="'+sga.x.toFixed(1)+'" y1="'+sga.y.toFixed(1)+'" x2="'+sgb.x.toFixed(1)+'" y2="'+sgb.y.toFixed(1)+'" stroke="#1FA45B" stroke-width="3" stroke-linecap="round"/>';
+    }
+  }
+
+  // Highlight the wall currently being measured, in red.
+  var measureEl = "";
+  if (b.measuring && b.closed && b.points.length){
+    var mi = b.measureIdx;
+    var ma=b.points[mi], mb=b.points[(mi+1)%b.points.length];
+    if (ma&&mb){ var sma=toSvg(ma), smb=toSvg(mb);
+      measureEl = '<line x1="'+sma.x.toFixed(1)+'" y1="'+sma.y.toFixed(1)+'" x2="'+smb.x.toFixed(1)+'" y2="'+smb.y.toFixed(1)+'" stroke="#E23B2E" stroke-width="4" stroke-linecap="round"/>'; }
+  }
+
   var wallLabels = "";
   for (var i=0;i<b.wallLengths.length;i++){
+    if (b.wallLengths[i]==null) continue; // skip walls not yet measured
     var pa=b.points[i], pb=b.points[(i+1)%b.points.length];
     if (!pa||!pb) continue;
     var spa=toSvg(pa), spb=toSvg(pb);
@@ -726,7 +765,7 @@ function buildBuilderCanvasSvg(b){
   // full-area hit layer so drawing works anywhere on the canvas, not only on top of a grid line
   var hitRect = '<rect x="0" y="0" width="'+CANVAS_W+'" height="'+CANVAS_H+'" fill="transparent" pointer-events="all"/>';
   return '<svg id="builderSvg" viewBox="0 0 '+CANVAS_W+' '+CANVAS_H+'" width="100%" height="100%" style="overflow:hidden" xmlns="http://www.w3.org/2000/svg">'+
-    hitRect+gOpen+grid+pathEl+diagEls+dragEl+dots+wallLabels+'</g>'+emptyHint+'</svg>';
+    hitRect+gOpen+grid+pathEl+measuredEls+measureEl+diagEls+dragEl+dots+wallLabels+'</g>'+emptyHint+'</svg>';
 }
 function renderCanvasOnly(){
   var wrap = document.getElementById("builderSvgWrap");
@@ -739,21 +778,39 @@ function renderSegList(b){
   var rows = "";
   for (var i=0;i<b.wallLengths.length;i++){
     var tag = pointLabel(i)+pointLabel((i+1)%b.points.length);
-    if (b.editSeg && b.editSeg.kind==="wall" && b.editSeg.idx===i){
-      rows += '<div class="wall-edit-row"><span class="wtag">'+tag+'</span><input class="input input-num" id="editSegInput" type="number" inputmode="decimal" value="'+b.wallLengths[i]+'"><button class="btn btn-sm btn-primary" data-act="confirmEditSeg" data-kind="wall" data-idx="'+i+'">✓</button><button class="btn btn-sm btn-ghost" data-act="cancelEditSeg">✕</button></div>';
-    } else {
-      rows += '<div class="wall-row"><span class="wtag">'+tag+'</span><span class="wval">'+b.wallLengths[i]+' см</span><button data-act="editSeg" data-kind="wall" data-idx="'+i+'">✎</button></div>';
-    }
+    var actW = (b.editSeg && b.editSeg.kind==="wall" && b.editSeg.idx===i) ? " wall-row-active" : "";
+    var valW = (b.wallLengths[i]==null) ? '<span class="wval wval-empty">— см</span>' : '<span class="wval">'+b.wallLengths[i]+' см</span>';
+    rows += '<div class="wall-row'+actW+'"><span class="wtag">'+tag+'</span>'+valW+'<button data-act="editSeg" data-kind="wall" data-idx="'+i+'">✎</button></div>';
   }
   b.diagonals.forEach(function(d,i){
     var tag = pointLabel(d.a)+'–'+pointLabel(d.b);
-    if (b.editSeg && b.editSeg.kind==="diag" && b.editSeg.idx===i){
-      rows += '<div class="wall-edit-row"><span class="wturn">↳ '+tag+'</span><input class="input input-num" id="editSegInput" type="number" inputmode="decimal" value="'+d.length+'"><button class="btn btn-sm btn-primary" data-act="confirmEditSeg" data-kind="diag" data-idx="'+i+'">✓</button><button class="btn btn-sm btn-ghost" data-act="cancelEditSeg">✕</button></div>';
-    } else {
-      rows += '<div class="wall-row"><span class="wturn">↳ диагональ '+tag+'</span><span class="wval">'+d.length+' см</span><button data-act="editSeg" data-kind="diag" data-idx="'+i+'">✎</button><button data-act="deleteDiag" data-idx="'+i+'">🗑</button></div>';
-    }
+    var actD = (b.editSeg && b.editSeg.kind==="diag" && b.editSeg.idx===i) ? " wall-row-active" : "";
+    rows += '<div class="wall-row'+actD+'"><span class="wturn">↳ диагональ '+tag+'</span><span class="wval">'+d.length+' см</span><button data-act="editSeg" data-kind="diag" data-idx="'+i+'">✎</button><button data-act="deleteDiag" data-idx="'+i+'">🗑</button></div>';
   });
   return '<div class="wall-log">'+rows+'</div>';
+}
+
+// ---------- custom numeric keypad (length entry) ----------
+function renderKeypad(){
+  function d(n){ return '<button class="kp-btn" data-act="kpDigit" data-d="'+n+'">'+n+'</button>'; }
+  return '<div class="keypad">'+
+    d(1)+d(2)+d(3)+
+    d(4)+d(5)+d(6)+
+    d(7)+d(8)+d(9)+
+    '<button class="kp-btn kp-mut" data-act="kpDot">.</button>'+
+    d(0)+
+    '<button class="kp-btn kp-mut" data-act="kpBack">⌫</button>'+
+    '</div>'+
+    '<button class="btn btn-primary btn-block kp-ok" data-act="kpOk">Готово ✓</button>';
+}
+function kpDisplay(b, label){
+  var val = b.kp||"";
+  return '<div class="kp-head">'+label+'</div>'+
+    '<div class="kp-display"><span class="kp-value">'+escapeHtml(val||"0")+'</span><span class="kp-unit">см</span></div>';
+}
+function updateKp(){
+  var el = document.querySelector(".kp-value");
+  if (el) el.textContent = (NAV.builder.kp||"")||"0";
 }
 
 function pendingLabel(b){
@@ -769,8 +826,9 @@ function pendingLabel(b){
 function renderBuilderScreen(){
   var b = NAV.builder;
   var canvasHtml, body;
+  var K = b.points.length;
 
-  if (b.resultMode && b.closed && !b.pending){
+  if (b.resultMode){
     var g = solveShape(b.points, b.wallLengths, b.diagonals);
     canvasHtml = polygonSvg(g.vertices, Object.assign({width:CANVAS_W,height:CANVAS_H,pad:26,walls:b.wallLengths,diagonals:b.diagonals}, svgCssVars()));
     var need = Math.max(0, g.needDiagonals-g.haveDiagonals);
@@ -786,29 +844,45 @@ function renderBuilderScreen(){
       '<div class="result-stat"><div class="result-stat-value num">'+fmtM2(g.area)+'</div><div class="result-stat-label">Площадь</div></div>'+
       '<div class="result-stat"><div class="result-stat-value num">'+fmtM(g.perimeter)+'</div><div class="result-stat-label">Периметр</div></div>'+
       '</div>'+banner+
-      '<div class="btn-row"><button class="btn btn-secondary" data-act="addDiagonalMore">+ Диагональ</button><button class="btn btn-secondary" data-act="reopenBuilder">Изменить</button></div>'+
-      '<div class="field"><div class="field-label">Название чертежа</div><input class="input" id="measNameInput" type="text" value="'+escapeHtml(b.name)+'"></div>'+
-      '<button class="btn btn-primary btn-block" data-act="saveMeasurement">Сохранить</button>';
-  } else {
-    canvasHtml = buildBuilderCanvasSvg(b);
-    if (b.pending){
-      body = renderSegList(b) +
-        '<div class="field"><div class="field-label">'+pendingLabel(b)+'</div>'+
-        '<div class="input-suffix-wrap"><input class="input input-num" id="pendingLenInput" type="number" inputmode="decimal" placeholder="0" autofocus><span class="input-suffix">см</span></div></div>'+
-        '<div class="btn-row"><button class="btn btn-ghost" data-act="cancelPending">Отмена</button><button class="btn btn-primary" data-act="confirmPending">Готово</button></div>';
+      renderSegList(b);
+    if (b.editSeg){
+      var esTag = (b.editSeg.kind==="wall")
+        ? pointLabel(b.editSeg.idx)+"–"+pointLabel((b.editSeg.idx+1)%K)
+        : pointLabel(b.diagonals[b.editSeg.idx].a)+"–"+pointLabel(b.diagonals[b.editSeg.idx].b);
+      body += kpDisplay(b, "Изменить "+esTag) + renderKeypad() +
+        '<div class="btn-row"><button class="btn btn-ghost" data-act="cancelEditSeg">Отмена</button></div>';
     } else {
-      var canClose = b.points.length>=3 && !b.closed;
-      var modeToggle = '<div class="dir-toggle">'+
-        '<button class="dir-btn '+(b.mode==="wall"?"active":"")+'" data-act="setMode" data-mode="wall" '+(b.closed?"disabled":"")+'>✏️ Стена</button>'+
-        '<button class="dir-btn '+(b.mode==="diagonal"?"active":"")+'" data-act="setMode" data-mode="diagonal" '+(b.points.length<3?"disabled":"")+'>📏 Диагональ</button>'+
-        '</div>';
-      var hint = '<div class="canvas-hint">'+(b.mode==="wall" ? "Свайп по клеточкам — стена ляжет строго по горизонтали или вертикали (90°)" : "Проведите линию между двумя уже поставленными точками")+'</div>';
-      body = modeToggle + hint + renderSegList(b) +
-        (canClose ? '<button class="btn btn-secondary btn-block" data-act="closeToStart">Замкнуть контур на '+pointLabel(0)+'</button>' : "")+
+      body += '<div class="btn-row"><button class="btn btn-secondary" data-act="addDiagonalMore">+ Диагональ</button></div>'+
+        '<div class="field"><div class="field-label">Название чертежа</div><input class="input" id="measNameInput" type="text" value="'+escapeHtml(b.name)+'"></div>'+
+        '<button class="btn btn-primary btn-block" data-act="saveMeasurement">Сохранить</button>';
+    }
+  } else if (b.measuring){
+    canvasHtml = buildBuilderCanvasSvg(b);
+    var i = b.measureIdx;
+    var lbl = "Стена "+pointLabel(i)+"–"+pointLabel((i+1)%K)+"  ·  "+(i+1)+" из "+K;
+    body = kpDisplay(b, lbl) + renderKeypad() +
+      '<div class="btn-row">'+
+      (i>0 ? '<button class="btn btn-secondary" data-act="measurePrev">← Пред. стена</button>' : '')+
+      '<button class="btn btn-ghost" data-act="reopenSketch">Изменить контур</button>'+
+      '</div>';
+  } else if (b.diagPending){
+    canvasHtml = buildBuilderCanvasSvg(b);
+    body = kpDisplay(b, "Диагональ "+pointLabel(b.diagPending.aIdx)+"–"+pointLabel(b.diagPending.bIdx)) + renderKeypad() +
+      '<div class="btn-row"><button class="btn btn-ghost" data-act="cancelDiag">Отмена</button></div>';
+  } else {
+    // sketch phase (drawing the outline), or drawing a diagonal in result
+    canvasHtml = buildBuilderCanvasSvg(b);
+    var canClose = K>=3 && !b.closed;
+    if (b.addingDiag){
+      body = '<div class="canvas-hint">Проведите диагональ между двумя углами (для скошенных стен)</div>'+
+        '<div class="btn-row"><button class="btn btn-ghost" data-act="cancelDiag">Отмена</button></div>';
+    } else {
+      var hint = '<div class="canvas-hint">Обведите весь контур по клеточкам (стены под 90°). Замеры введёте после.</div>';
+      body = hint +
+        (canClose ? '<button class="btn btn-secondary btn-block" data-act="closeToStart">Замкнуть контур на '+pointLabel(0)+' →</button>' : "")+
         '<div class="btn-row">'+
-        (b.points.length>0 ? '<button class="btn btn-secondary" data-act="undoBuilder">Отменить последний шаг</button>' : '<button class="btn btn-ghost" data-act="cancelBuilder">Отмена</button>')+
-        '</div>'+
-        (b.closed ? '<button class="btn btn-primary btn-block" data-act="showResult">Готово — посчитать площадь →</button>' : "");
+        (K>0 ? '<button class="btn btn-secondary" data-act="undoBuilder">Отменить последний шаг</button>' : '<button class="btn btn-ghost" data-act="cancelBuilder">Отмена</button>')+
+        '</div>';
     }
   }
 
@@ -989,16 +1063,16 @@ function onCanvasPointerUp(e){
   if (drag.mode==="wall-first"){
     var p0 = snapToGrid(drag.startRaw), p1 = orthoSnap(drag.startRaw, raw);
     if (Math.hypot(p1.x-p0.x,p1.y-p0.y) < 0.15){ render(); return; }
-    b.pending = {type:"wall", newPoints:[p0,p1], closing:false};
+    b.points.push(p0); b.points.push(p1);
   } else if (drag.mode==="wall-next"){
     var last = b.points[b.points.length-1];
     var pnew = orthoSnap(last, raw);
     if (b.points.length>=3 && Math.hypot(pnew.x-b.points[0].x, pnew.y-b.points[0].y) < 0.75){
-      b.pending = {type:"wall", newPoints:[], closing:true};
+      startMeasuring(b); render(); return; // close contour → measure phase
     } else if (Math.hypot(pnew.x-last.x, pnew.y-last.y) < 0.15){
       render(); return;
     } else {
-      b.pending = {type:"wall", newPoints:[pnew], closing:false};
+      b.points.push(pnew);
     }
   } else if (drag.mode==="diagonal"){
     var bIdx = nearestExistingPoint(raw, b.points, 1.15);
@@ -1007,9 +1081,14 @@ function onCanvasPointerUp(e){
     var K = b.points.length;
     var isEdge = (Math.abs(drag.aIdx-bIdx)===1) || (drag.aIdx===0&&bIdx===K-1) || (bIdx===0&&drag.aIdx===K-1);
     if (dup || isEdge){ toast("Такая линия уже есть"); render(); return; }
-    b.pending = {type:"diagonal", aIdx:drag.aIdx, bIdx:bIdx};
+    b.diagPending = {aIdx:drag.aIdx, bIdx:bIdx}; b.kp = "";
   }
   render();
+}
+function startMeasuring(b){
+  b.closed = true; b.measuring = true; b.measureIdx = 0;
+  b.wallLengths = new Array(b.points.length).fill(null);
+  b.mode = "wall"; b.kp = ""; b.addingDiag = false; b.diagPending = null;
 }
 
 // ---------- live (non-rerendering) input wiring ----------
@@ -1112,7 +1191,7 @@ function actions(act, ds){
     NAV.modal = null; render(); return;
   }
   if (act==="cancelBuilderConfirm"){
-    if (b.points.length===0 && !b.pending){ NAV = {view:"apartment", houseId:b.houseId, floorId:b.floorId, apartmentId:b.aptId}; render(); return; }
+    if (b.points.length===0){ NAV = {view:"apartment", houseId:b.houseId, floorId:b.floorId, apartmentId:b.aptId}; render(); return; }
     NAV.modal = {type:"cancelBuilderConfirm"}; render(); return;
   }
   if (act==="confirmCancelBuilder"){
@@ -1124,60 +1203,61 @@ function actions(act, ds){
   if (act==="zoomIn"){ zoomCanvas(1.25); return; }
   if (act==="zoomOut"){ zoomCanvas(1/1.25); return; }
   if (act==="zoomReset"){ zoomReset(); return; }
-  if (act==="setMode"){
-    if (ds.mode==="wall" && b.closed) return;
-    b.mode = ds.mode; render(); return;
-  }
   if (act==="closeToStart"){
     if (b.points.length<3) return;
-    b.pending = {type:"wall", newPoints:[], closing:true};
-    render(); return;
+    startMeasuring(b); render(); return;
   }
-  if (act==="confirmPending"){
-    var lenv = readNum("pendingLenInput", null);
-    if (!lenv || lenv<=0){ toast("Введите длину в см"); return; }
-    var p = b.pending;
-    if (p.type==="wall"){
-      if (p.closing){ b.wallLengths.push(lenv); b.closed = true; b.resultMode = true; }
-      else { p.newPoints.forEach(function(pt){ b.points.push(pt); }); b.wallLengths.push(lenv); }
-    } else if (p.type==="diagonal"){
-      b.diagonals.push({a:p.aIdx, b:p.bIdx, length:lenv});
-      if (b.closed) b.resultMode = true;
+  // ----- custom numeric keypad -----
+  if (act==="kpDigit"){
+    if (b.kpFresh){ b.kp=""; b.kpFresh=false; }
+    b.kp = b.kp||"";
+    if (b.kp==="0") b.kp = "";
+    if (b.kp.replace(".","").length < 6) b.kp += ds.d;
+    updateKp(); return;
+  }
+  if (act==="kpDot"){ if (b.kpFresh){ b.kp=""; b.kpFresh=false; } b.kp = b.kp||""; if (b.kp.indexOf(".")<0){ b.kp = (b.kp||"0")+"."; } updateKp(); return; }
+  if (act==="kpBack"){ b.kpFresh=false; b.kp = (b.kp||"").slice(0,-1); updateKp(); return; }
+  if (act==="kpOk"){
+    var kv = parseFloat(b.kp);
+    if (!kv || kv<=0){ toast("Введите длину в см"); return; }
+    b.kpFresh = false;
+    if (b.diagPending){
+      b.diagonals.push({a:b.diagPending.aIdx, b:b.diagPending.bIdx, length:kv});
+      b.diagPending=null; b.kp=""; b.addingDiag=false; b.mode="wall"; b.resultMode=true; render(); return;
     }
-    b.pending = null;
+    if (b.editSeg){
+      if (b.editSeg.kind==="wall") b.wallLengths[b.editSeg.idx]=kv; else b.diagonals[b.editSeg.idx].length=kv;
+      b.editSeg=null; b.kp=""; render(); return;
+    }
+    b.wallLengths[b.measureIdx] = kv; b.kp="";
+    b.measureIdx++;
+    if (b.measureIdx >= b.points.length){ b.measuring=false; b.resultMode=true; }
     render(); return;
   }
-  if (act==="cancelPending"){ b.pending = null; render(); return; }
-  if (act==="showResult"){ b.resultMode = true; render(); return; }
-  if (act==="addDiagonalMore"){ b.resultMode = false; b.mode = "diagonal"; render(); return; }
-  if (act==="reopenBuilder"){
-    var nameEl = document.getElementById("measNameInput");
-    if (nameEl) b.name = nameEl.value;
-    b.resultMode = false; render(); return;
+  if (act==="measurePrev"){
+    if (b.measureIdx>0){ b.measureIdx--; b.kp = (b.wallLengths[b.measureIdx]!=null ? String(b.wallLengths[b.measureIdx]) : ""); b.kpFresh = b.kp!==""; }
+    render(); return;
   }
+  if (act==="reopenSketch"){
+    b.measuring=false; b.closed=false; b.wallLengths=[]; b.measureIdx=0; b.kp=""; b.mode="wall"; render(); return;
+  }
+  if (act==="addDiagonalMore"){
+    var nEl0=document.getElementById("measNameInput"); if (nEl0) b.name=nEl0.value;
+    b.resultMode=false; b.addingDiag=true; b.mode="diagonal"; b.kp=""; render(); return;
+  }
+  if (act==="cancelDiag"){ b.diagPending=null; b.addingDiag=false; b.mode="wall"; b.resultMode=true; render(); return; }
   if (act==="undoBuilder"){
-    if (b.pending){ b.pending = null; render(); return; }
-    if (b.closed){
-      b.wallLengths.pop(); b.closed = false; b.resultMode = false; b.mode = "wall";
-      render(); return;
-    }
-    if (b.points.length>0){
-      b.wallLengths.pop();
-      if (b.points.length<=2){ b.points = []; } else { b.points.pop(); }
-    }
+    if (b.points.length>0){ b.points.pop(); if (b.points.length===1) b.points=[]; }
     render(); return;
   }
-  if (act==="editSeg"){ b.editSeg = {kind:ds.kind, idx:parseInt(ds.idx,10)}; render(); return; }
-  if (act==="cancelEditSeg"){ b.editSeg = null; render(); return; }
-  if (act==="confirmEditSeg"){
-    var idxv = parseInt(ds.idx,10);
-    var v9 = readNum("editSegInput", null);
-    if (v9 && v9>0){
-      if (ds.kind==="wall") b.wallLengths[idxv] = v9;
-      else b.diagonals[idxv].length = v9;
-    }
-    b.editSeg = null; render(); return;
+  if (act==="editSeg"){
+    var ei = parseInt(ds.idx,10);
+    b.editSeg = {kind:ds.kind, idx:ei};
+    b.kp = (ds.kind==="wall") ? (b.wallLengths[ei]!=null?String(b.wallLengths[ei]):"") : String(b.diagonals[ei].length||"");
+    b.kpFresh = b.kp!=="";
+    render(); return;
   }
+  if (act==="cancelEditSeg"){ b.editSeg = null; b.kp=""; render(); return; }
   if (act==="deleteDiag"){
     var di = parseInt(ds.idx,10);
     b.diagonals.splice(di,1);
